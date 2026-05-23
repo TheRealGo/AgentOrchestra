@@ -1,0 +1,42 @@
+name: agent-orchestra source contract
+
+on:
+  pull_request:
+    paths:
+      - ".codex/agent_orchestra_minimal/**"
+      - ".codex/bin/**"
+      - ".codex/hooks/**"
+      - ".codex/skills/agent-orchestra-*/**"
+      - "tests/**"
+      - "SPEC.md"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/pull_request_template.md"
+      - ".github/workflows/agent-orchestra-source-contract.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".codex/agent_orchestra_minimal/**"
+      - ".codex/bin/**"
+      - ".codex/hooks/**"
+      - ".codex/skills/agent-orchestra-*/**"
+      - "tests/**"
+      - "SPEC.md"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/pull_request_template.md"
+      - ".github/workflows/agent-orchestra-source-contract.yml"
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Check AgentOrchestra whitespace
+        run: git diff --check -- .codex tests SPEC.md flake.nix flake.lock .github
+      - name: Evaluate AgentOrchestra source contract
+        run: nix flake check --no-build
+      - name: Build AgentOrchestra source contract
+        run: nix build .#checks.x86_64-linux.source-contract

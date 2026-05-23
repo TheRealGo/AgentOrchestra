@@ -1,0 +1,8 @@
+agent_runs/
+requirements/
+result
+__pycache__/
+*.py[cod]
+.DS_Store
+.codex/installation_id
+.codex/skills/.system/
