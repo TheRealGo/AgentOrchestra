@@ -15,10 +15,15 @@ from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
 class FakeTmux:
     def __init__(self) -> None:
         self.calls: list[tuple[list[str], str | None]] = []
+        self.capture_count = 0
 
     def __call__(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         self.calls.append((args, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
-        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        stdout = ""
+        if args[:2] == ["tmux", "capture-pane"]:
+            self.capture_count += 1
+            stdout = "" if self.capture_count == 1 else "› runtime_wake\n\n• Working\n"
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
 
 
 class RunFiles:
@@ -49,3 +54,27 @@ class RunFiles:
     def __exit__(self, *_exc: object) -> None:
         if self._tmp is not None:
             self._tmp.cleanup()
+
+
+def task_text(
+    *,
+    status: str,
+    backlog: list[str] | None = None,
+    in_progress: list[str] | None = None,
+    in_review: list[str] | None = None,
+    candidates: list[str] | None = None,
+    done: list[str] | None = None,
+) -> str:
+    sections = {
+        "Backlog": backlog or [],
+        "InProgress": in_progress or [],
+        "InReview": in_review or [],
+        "Candidates": candidates or [],
+        "Done": done or [],
+    }
+    lines = ["[status]", status, ""]
+    for section, items in sections.items():
+        lines.append(f"[{section}]")
+        lines.extend(f"- {item}" for item in items)
+        lines.append("")
+    return "\n".join(lines)

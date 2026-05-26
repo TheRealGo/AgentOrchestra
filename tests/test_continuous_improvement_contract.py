@@ -42,6 +42,36 @@ class ContinuousImprovementContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, skill)
 
+    def test_team_skill_and_main_template_require_subagent_opportunity_check(self) -> None:
+        skill = " ".join(
+            (ROOT / ".codex" / "skills" / "agent-orchestra-team" / "SKILL.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        main_template = " ".join(
+            (
+                ROOT
+                / ".codex"
+                / "agent_orchestra_minimal"
+                / "agent_templates"
+                / "main.AGENTS.md"
+            )
+            .read_text(encoding="utf-8")
+            .split()
+        )
+
+        for phrase in (
+            "perform a SubAgent opportunity check before final review",
+            "record why the owning Agent's context and evidence are sufficient",
+        ):
+            self.assertIn(phrase, skill)
+        for phrase in (
+            "Use Codex-native SubAgents proactively",
+            "normally use at least one SubAgent for critique, evidence review, or alternative analysis before final completion",
+            "record the sufficiency rationale",
+        ):
+            self.assertIn(phrase, main_template)
+
 
 if __name__ == "__main__":
     unittest.main()

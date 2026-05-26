@@ -23,6 +23,8 @@ done
 
 [InReview]
 
+[Candidates]
+
 [Done]
 completed item
 """
@@ -57,7 +59,51 @@ class RekickDecisionTests(unittest.TestCase):
             {"agent_kind": "main", "state": "done"}, default_agent_id="main"
         )
 
+        self.assertTrue(task_file.is_finalized)
         self.assertFalse(decide_wake(task_file, agent_state).should_wake)
+
+    def test_main_agent_rekick_follows_task_file_finalization_contract(self) -> None:
+        agent_state = AgentState.from_mapping(
+            {"agent_kind": "main", "state": "done"}, default_agent_id="main"
+        )
+        task_files = (
+            SharedTaskFile.parse(CANONICAL_EMPTY_TASK_FILE),
+            SharedTaskFile.parse(
+                CANONICAL_EMPTY_TASK_FILE.replace("[status]\ndone", "[status]\nprogress")
+            ),
+            SharedTaskFile.parse(
+                CANONICAL_EMPTY_TASK_FILE.replace("[Backlog]\n\n", "[Backlog]\nnext-cycle\n\n")
+            ),
+            SharedTaskFile.parse(
+                CANONICAL_EMPTY_TASK_FILE.replace(
+                    "[Candidates]\n\n",
+                    "[Candidates]\ncandidate-1: disposition=open; summary=next cycle; evidence=review\n\n",
+                )
+            ),
+        )
+
+        for task_file in task_files:
+            with self.subTest(blockers=task_file.finalization_blockers):
+                self.assertEqual(
+                    decide_wake(task_file, agent_state).should_wake,
+                    not task_file.is_finalized,
+                )
+
+    def test_main_agent_rekicks_when_done_status_has_unresolved_candidates(self) -> None:
+        task_file = SharedTaskFile.parse(
+            CANONICAL_EMPTY_TASK_FILE.replace(
+                "[Candidates]\n\n",
+                "[Candidates]\ncandidate-1: disposition=open; summary=send retry helper\n\n",
+            )
+        )
+        agent_state = AgentState.from_mapping(
+            {"agent_kind": "main", "state": "done"}, default_agent_id="main"
+        )
+
+        decision = decide_wake(task_file, agent_state)
+
+        self.assertTrue(decision.should_wake)
+        self.assertEqual(decision.reason, "main_done_with_unresolved_candidates")
 
     def test_professional_agent_rekicks_only_for_active_states(self) -> None:
         task_file = SharedTaskFile.parse(CANONICAL_EMPTY_TASK_FILE)

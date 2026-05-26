@@ -1,26 +1,19 @@
 from __future__ import annotations
 import os
 import re
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
-from .launch_args import codex_launch_argv, main_tmux_pane, validate_codex_args
-from .launch_io import (
-    ensure_target_link,
-    install_auth_material,
-    install_codex_material,
-    write_env_shell,
-    write_json,
-)
+from .launch_args import codex_launch_argv, main_tmux_pane, optional_tmux_pane, validate_codex_args
+from .launch_io import ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
 from .task_file import SharedTaskFile
+from .tmux_delivery import normalize_submit_key
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
-
 
 @dataclass(frozen=True)
 class LaunchMaterial:
@@ -74,17 +67,17 @@ def prepare_launch_material(
     command_path = agent_dir / "command.json"
     config_path = codex_home / "agent-orchestra.config.toml"
     shared_task = Path(task_file).expanduser().resolve() if task_file else run_root / "tasks.ini"
+    normalized_tmux_pane = optional_tmux_pane(tmux_pane)
 
     if _is_relative_to(workspace, target_root):
         raise ValueError(
             "isolated workspace must not be inside target_project; use a run_dir "
             "outside the target tree so target root AGENTS.md cannot become a startup instruction"
         )
+    _reject_parent_agents_md(workspace)
 
-    if state_file.exists() or env_path.exists() or command_path.exists():
-        for isolated_dir in (workspace, home, codex_home):
-            if isolated_dir.exists():
-                shutil.rmtree(isolated_dir)
+    for isolated_dir in (workspace, home, codex_home):
+        remove_isolated_path(isolated_dir)
     for directory in (workspace, home, codex_home, agent_dir):
         directory.mkdir(parents=True, exist_ok=True)
     ensure_target_link(workspace / "target_project", target_root)
@@ -93,7 +86,7 @@ def prepare_launch_material(
         agent_id=agent_id,
         agent_kind=kind,
         state=_normalize_initial_state(initial_state),
-        tmux_target=tmux_pane,
+        tmux_target=normalized_tmux_pane,
     ).write(state_file)
 
     startup_agents = workspace / "AGENTS.md"
@@ -112,12 +105,13 @@ def prepare_launch_material(
     install_codex_material(codex_home, workspace, config_path)
     install_auth_material(codex_home, auth_source)
 
-    submit_key = os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", "").strip() or "C-m"
-    main_pane = main_tmux_pane(kind, tmux_pane)
+    submit_key = normalize_submit_key(os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY"))
+    main_pane = main_tmux_pane(kind, normalized_tmux_pane)
     extra_codex_args = validate_codex_args(codex_args)
     env = {
         "HOME": str(home),
         "CODEX_HOME": str(codex_home),
+        "PYTHONPATH": str(codex_home),
         "AGENT_ORCHESTRA_AGENT_ID": agent_id,
         "AGENT_ORCHESTRA_AGENT_KIND": kind,
         "AGENT_ORCHESTRA_AGENT_DIR": str(agent_dir),
@@ -128,8 +122,10 @@ def prepare_launch_material(
         "AGENT_ORCHESTRA_PYTHON": sys.executable,
         "AGENT_ORCHESTRA_TUI_SUBMIT_KEY": submit_key,
     }
-    if tmux_pane:
-        env["AGENT_ORCHESTRA_TMUX_PANE"] = tmux_pane
+    if protocol_root := os.environ.get("AGENT_ORCHESTRA_REPO_ROOT"):
+        env["AGENT_ORCHESTRA_REPO_ROOT"] = str(Path(protocol_root).expanduser().resolve())
+    if normalized_tmux_pane:
+        env["AGENT_ORCHESTRA_TMUX_PANE"] = normalized_tmux_pane
     if main_pane:
         env["AGENT_ORCHESTRA_MAIN_TMUX_PANE"] = main_pane
     argv = codex_launch_argv(
@@ -196,3 +192,9 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _reject_parent_agents_md(workspace: Path) -> None:
+    for parent in workspace.resolve().parents:
+        if (parent / "AGENTS.md").exists():
+            raise ValueError("isolated workspace must not have an ancestor AGENTS.md")

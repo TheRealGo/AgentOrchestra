@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -17,22 +18,25 @@ from agent_orchestra_minimal.tmux_wake import (  # noqa: E402
     run_stop_hook,
     send_wake,
 )
-from stop_hook_helpers import FakeTmux, RunFiles  # noqa: E402
+from stop_hook_helpers import FakeTmux, RunFiles, task_text  # noqa: E402
 
 
 class StopHookAndTmuxTests(unittest.TestCase):
     def test_wake_command_pastes_fixed_runtime_payload_with_named_buffer_and_submit_key(self) -> None:
         fake = FakeTmux()
 
-        send_wake("%7", runner=fake)
+        result = send_wake("%7", runner=fake)
 
         wake_buffer = self.wakeBuffer(fake)
+        self.assertTrue(result.accepted)
         self.assertEqual(
             fake.calls,
             [
                 (["tmux", "load-buffer", "-b", wake_buffer, "-"], WAKE_PAYLOAD),
+                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
                 (["tmux", "paste-buffer", "-t", "%7", "-b", wake_buffer], None),
                 (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None),
+                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
                 (["tmux", "delete-buffer", "-b", wake_buffer], None),
             ],
         )
@@ -45,13 +49,31 @@ class StopHookAndTmuxTests(unittest.TestCase):
 
         send_wake("%7", submit_key="C-m", runner=fake)
 
-        self.assertEqual(fake.calls[-2], (["tmux", "send-keys", "-t", "%7", "C-m"], None))
+        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", "C-m"], None))
+
+    def test_wake_command_defaults_blank_submit_key(self) -> None:
+        fake = FakeTmux()
+
+        send_wake("%7", submit_key="  ", runner=fake)
+
+        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
+
+    def test_wake_command_does_not_accept_stale_identical_payload(self) -> None:
+        fake = FakeTmux()
+        fake.capture_count = 10
+
+        result = send_wake(
+            "%7",
+            runner=fake,
+        )
+
+        self.assertFalse(result.accepted)
 
     def test_main_agent_wakes_when_status_is_progress(self) -> None:
         with self.run_files(
             agent_kind="MainAgent",
             state="working",
-            task_text=self.tasks(status="progress"),
+            task_text=task_text(status="progress"),
         ) as env:
             fake = FakeTmux()
             decision = run_stop_hook(env, runner=fake)
@@ -64,7 +86,7 @@ class StopHookAndTmuxTests(unittest.TestCase):
         with self.run_files(
             agent_kind="MainAgent",
             state="working",
-            task_text=self.tasks(status="done", in_review=["review ProA result"]),
+            task_text=task_text(status="done", in_review=["review ProA result"]),
         ) as env:
             fake = FakeTmux()
             decision = run_stop_hook(env, runner=fake)
@@ -77,7 +99,7 @@ class StopHookAndTmuxTests(unittest.TestCase):
         with self.run_files(
             agent_kind="MainAgent",
             state="working",
-            task_text=self.tasks(status="done", done=["accepted final result"]),
+            task_text=task_text(status="done", done=["accepted final result"]),
         ) as env:
             fake = FakeTmux()
             decision = run_stop_hook(env, runner=fake)
@@ -85,6 +107,24 @@ class StopHookAndTmuxTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertFalse(decision.should_wake)
         self.assertEqual(fake.calls, [])
+
+    def test_main_agent_wakes_when_done_status_has_unresolved_candidate(self) -> None:
+        with self.run_files(
+            agent_kind="MainAgent",
+            state="working",
+            task_text=task_text(
+                status="done",
+                candidates=["candidate-1: disposition=open; summary=send retry helper"],
+                done=["accepted current patch"],
+            ),
+        ) as env:
+            fake = FakeTmux()
+            decision = run_stop_hook(env, runner=fake)
+
+        self.assertIsNotNone(decision)
+        self.assertTrue(decision.should_wake)
+        self.assertEqual(decision.reason, "main_done_with_unresolved_candidates")
+        self.assertWakeSent(fake)
 
     def test_professional_agent_wakes_for_unfinished_states(self) -> None:
         for state in ("working", "progress", "ready"):
@@ -130,81 +170,6 @@ class StopHookAndTmuxTests(unittest.TestCase):
         self.assertIsNone(decision)
         self.assertEqual(fake.calls, [])
 
-    def test_missing_task_file_wakes_main_agent_for_repair(self) -> None:
-        with self.run_files(agent_kind="MainAgent", state="working") as env:
-            Path(env["AGENT_ORCHESTRA_TASK_FILE"]).unlink()
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertTrue(decision.should_wake)
-        self.assertEqual(decision.reason, "invalid_task_file_or_unreadable")
-        self.assertWakeSent(fake)
-
-    def test_missing_task_file_wakes_active_professional_agent_for_repair(self) -> None:
-        with self.run_files(agent_kind="ProfessionalAgent", state="working") as env:
-            Path(env["AGENT_ORCHESTRA_TASK_FILE"]).unlink()
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertTrue(decision.should_wake)
-        self.assertEqual(decision.reason, "invalid_task_file_or_unreadable")
-        self.assertWakeSent(fake)
-
-    def test_missing_task_file_stays_quiet_without_main_fallback_for_quiet_professional_agent(self) -> None:
-        with self.run_files(agent_kind="ProfessionalAgent", state="ready_for_review") as env:
-            Path(env["AGENT_ORCHESTRA_TASK_FILE"]).unlink()
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertFalse(decision.should_wake)
-        self.assertEqual(fake.calls, [])
-
-    def test_retired_professional_agent_with_missing_task_file_wakes_main_for_repair(self) -> None:
-        with self.run_files(agent_kind="ProfessionalAgent", state="retired") as env:
-            Path(env["AGENT_ORCHESTRA_TASK_FILE"]).unlink()
-            env.pop("AGENT_ORCHESTRA_TMUX_PANE")
-            env.pop("TMUX_PANE", None)
-            env["AGENT_ORCHESTRA_MAIN_TMUX_PANE"] = "%main"
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertTrue(decision.should_wake)
-        self.assertEqual(decision.reason, "invalid_task_file_or_unreadable_main_fallback")
-        self.assertEqual(fake.calls[-2], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
-
-    def test_invalid_task_file_wakes_main_agent_for_repair(self) -> None:
-        with self.run_files(
-            agent_kind="MainAgent",
-            state="working",
-            task_text="[status]\nprogress\n\n[Unexpected]\nagent added scratch notes\n",
-        ) as env:
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertTrue(decision.should_wake)
-        self.assertEqual(decision.reason, "invalid_task_file_or_unreadable")
-        self.assertWakeSent(fake)
-
-    def test_invalid_task_file_wakes_active_professional_agent_for_repair(self) -> None:
-        with self.run_files(
-            agent_kind="ProfessionalAgent",
-            state="working",
-            task_text="[status]\nprogress\n\n[Unexpected]\nagent added scratch notes\n",
-        ) as env:
-            fake = FakeTmux()
-            decision = run_stop_hook(env, runner=fake)
-
-        self.assertIsNotNone(decision)
-        self.assertTrue(decision.should_wake)
-        self.assertEqual(decision.reason, "invalid_task_file_or_unreadable")
-        self.assertWakeSent(fake)
-
-
     def run_files(
         self,
         *,
@@ -214,36 +179,14 @@ class StopHookAndTmuxTests(unittest.TestCase):
     ) -> RunFiles:
         return RunFiles(agent_kind=agent_kind, state=state, task_text=task_text or DEFAULT_TASK_FILE)
 
-    def tasks(
-        self,
-        *,
-        status: str,
-        backlog: list[str] | None = None,
-        in_progress: list[str] | None = None,
-        in_review: list[str] | None = None,
-        done: list[str] | None = None,
-    ) -> str:
-        sections = {
-            "Backlog": backlog or [],
-            "InProgress": in_progress or [],
-            "InReview": in_review or [],
-            "Done": done or [],
-        }
-        lines = ["[status]", status, ""]
-        for section, items in sections.items():
-            lines.append(f"[{section}]")
-            lines.extend(f"- {item}" for item in items)
-            lines.append("")
-        return "\n".join(lines)
-
     def assertWakeSent(self, fake: FakeTmux) -> None:
         wake_buffer = self.wakeBuffer(fake)
-        self.assertEqual(len(fake.calls), 4)
+        self.assertEqual(len(fake.calls), 6)
         self.assertEqual(
             fake.calls[0],
             (["tmux", "load-buffer", "-b", wake_buffer, "-"], WAKE_PAYLOAD),
         )
-        self.assertEqual(fake.calls[-2], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
+        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
         self.assertEqual(fake.calls[-1], (["tmux", "delete-buffer", "-b", wake_buffer], None))
 
     def wakeBuffer(self, fake: FakeTmux) -> str:

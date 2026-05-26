@@ -3,8 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .candidate_ledger import (
+    is_comment_or_blank,
+    unresolved_candidate_items,
+    validate_unique_candidate_ids,
+)
 
-SECTION_NAMES = ("status", "Backlog", "InProgress", "InReview", "Done")
+
+SECTION_NAMES = ("status", "Backlog", "InProgress", "InReview", "Candidates", "Done")
 OPEN_WORK_SECTIONS = ("Backlog", "InProgress", "InReview")
 ALLOWED_STATUS = frozenset({"progress", "done"})
 DEFAULT_TASK_FILE = """[status]
@@ -15,6 +21,8 @@ done
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 """
@@ -57,6 +65,7 @@ class SharedTaskFile:
         status = status_values[0].strip()
         if status not in ALLOWED_STATUS:
             raise ValueError(f"invalid shared task status {status!r}")
+        validate_unique_candidate_ids(sections["Candidates"])
         return cls(status=status, sections=sections)
 
     @classmethod
@@ -78,7 +87,7 @@ class SharedTaskFile:
             items.extend(
                 item
                 for item in self.sections.get(section, [])
-                if not _is_comment_or_blank(item)
+                if not is_comment_or_blank(item)
             )
         return items
 
@@ -86,14 +95,40 @@ class SharedTaskFile:
     def has_open_work(self) -> bool:
         return bool(self.open_work_items)
 
+    @property
+    def candidate_items(self) -> list[str]:
+        return [
+            item
+            for item in self.sections.get("Candidates", [])
+            if not is_comment_or_blank(item)
+        ]
+
+    @property
+    def unresolved_candidate_items(self) -> list[str]:
+        return unresolved_candidate_items(self.candidate_items)
+
+    @property
+    def has_unresolved_candidates(self) -> bool:
+        return bool(self.unresolved_candidate_items)
+
+    @property
+    def finalization_blockers(self) -> list[str]:
+        blockers: list[str] = []
+        if self.status != "done":
+            blockers.append(f"status={self.status}")
+        blockers.extend(f"open:{item}" for item in self.open_work_items)
+        blockers.extend(
+            f"candidate:{item}" for item in self.unresolved_candidate_items
+        )
+        return blockers
+
+    @property
+    def is_finalized(self) -> bool:
+        return not self.finalization_blockers
+
 
 def _normalize_item(line: str) -> str:
     for prefix in ("- ", "* "):
         if line.startswith(prefix):
             return line[len(prefix) :].strip()
     return line
-
-
-def _is_comment_or_blank(item: str) -> bool:
-    stripped = item.strip()
-    return not stripped or stripped.startswith("#") or stripped.startswith(";")

@@ -59,6 +59,11 @@ remains, add it to `[Backlog]`, keep `[status] = progress`, and start the next
 cycle. Do not treat `cycle_done` or accepted current patches as full completion
 for an open-ended improvement goal.
 
+Record the final sweep in `[Candidates]` with a disposition and evidence
+pointer for each candidate. Do not rely on narrative-only Done notes. Missing,
+`open`, `backlog`, or unrecognized candidate dispositions are unresolved and
+must keep the run alive.
+
 ## Team Choice
 
 Choose the smallest sufficient AgentTeam, meaning the smallest sufficient team,
@@ -75,6 +80,32 @@ but record why no ProfessionalAgent viewpoint is needed. A clear file scope or
 small edit surface is not enough to bypass team execution when the substance is
 organizational or cross-layer.
 
+## Equal Editing Team
+
+MainAgent is the user-facing steward, not a higher-authority editor. Editing,
+proposal, review, request-changes, and blocking-objection powers belong to the
+AgentTeam within the active user constraints and editable surface.
+
+For non-trivial work, organize decisions as change units. A change unit should
+record the owner/DRI, affected files or contracts, affected layers, reviewers,
+required checks, blocking objections, and resolution/evidence. Integration
+readiness is a Team/DRI review decision, not unilateral MainAgent permission.
+
+ProfessionalAgent recommendations are evidence for Team review. MainAgent may
+block only for user constraints, editable-surface violations, unresolved
+blocking objections, task/state inconsistency, or external/user decision needs.
+
+## Verification
+
+Use repository-standard verification for AgentTeam work:
+`python3 -m unittest discover -s tests`, `python3 -m py_compile` for runtime
+Python surfaces, `git diff --check`, and Nix checks where applicable.
+
+Do not ask Agents to run `pytest`, and do not use `pytest` as a default
+verification command. It is acceptable only when the user explicitly requested
+it or the Agent first confirmed it is available and necessary for the scoped
+work.
+
 ## SubAgents
 
 MainAgent and ProfessionalAgents should use Codex-native SubAgents
@@ -89,15 +120,15 @@ use at least one SubAgent for critique, evidence review, or alternative analysis
 when it can improve confidence. If no SubAgent is used, record why the owning
 Agent's context and evidence are sufficient.
 
-## Review And Retirement
+## Team Review And Retirement
 
-MainAgent reviews ProfessionalAgent outputs, asks follow-up questions when
-needed, accepts or rejects results, integrates accepted work, and retires
-ProfessionalAgents when no further task remains.
+MainAgent facilitates Team review of ProfessionalAgent outputs, asks follow-up
+questions when needed, records accepted/deferred/rejected dispositions, and
+retires ProfessionalAgents when no further task remains.
 
 Only integrate work that fits the active user goal and editable surface.
-ProfessionalAgent tasks must include the current edit constraints, and a
-ProfessionalAgent recommendation is evidence for MainAgent review, not
+ProfessionalAgent tasks must include the current edit constraints. A
+ProfessionalAgent recommendation is evidence for AgentTeam review, not
 permission to change scope.
 
 Use the task file as state, not as judgment. Agents make the judgment, then

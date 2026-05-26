@@ -7,8 +7,11 @@ on:
       - ".codex/bin/**"
       - ".codex/hooks/**"
       - ".codex/skills/agent-orchestra-*/**"
+      - "layers/**"
       - "tests/**"
+      - "Handoff.md"
       - "SPEC.md"
+      - ".gitignore"
       - "flake.nix"
       - "flake.lock"
       - ".github/pull_request_template.md"
@@ -21,21 +24,52 @@ on:
       - ".codex/bin/**"
       - ".codex/hooks/**"
       - ".codex/skills/agent-orchestra-*/**"
+      - "layers/**"
       - "tests/**"
+      - "Handoff.md"
       - "SPEC.md"
+      - ".gitignore"
       - "flake.nix"
       - "flake.lock"
       - ".github/pull_request_template.md"
       - ".github/workflows/agent-orchestra-source-contract.yml"
 
+permissions:
+  contents: read
+
 jobs:
   source-contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        if: github.repository != 'TheRealGo/AgentOrchestra' && !(github.repository == 'TheRealGo/AgentOrchestra-dev' && startsWith(github.head_ref, 'version-'))
+      - name: Checkout public release repository
+        if: github.repository == 'TheRealGo/AgentOrchestra'
+        run: |
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+      - name: Checkout public release mirror
+        if: github.repository == 'TheRealGo/AgentOrchestra-dev' && startsWith(github.head_ref, 'version-')
+        run: |
+          release_version="${GITHUB_HEAD_REF#version-}"
+          release_tag="v${release_version}"
+          git init .
+          git remote add origin "https://github.com/TheRealGo/AgentOrchestra.git"
+          git fetch --depth=1 origin "refs/tags/${release_tag}"
+          git checkout --detach FETCH_HEAD
+      - name: Install Nix
+        run: |
+          curl --proto '=https' --tlsv1.2 --silent --show-error --fail --location https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Check AgentOrchestra whitespace
-        run: git diff --check -- .codex tests SPEC.md flake.nix flake.lock .github
+        run: git diff --check -- .codex tests layers Handoff.md SPEC.md .gitignore flake.nix flake.lock .github
+      - name: Check AgentOrchestra Python contract
+        run: |
+          find .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 | xargs -0 python3 -m py_compile
+          python3 -m unittest discover -s tests
       - name: Evaluate AgentOrchestra source contract
         run: nix flake check --no-build
       - name: Build AgentOrchestra source contract

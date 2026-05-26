@@ -1,6 +1,6 @@
 ---
 name: agent-orchestra-task-file
-description: Maintain the shared agent-orchestra task file so Hook-driven re-kick behavior follows deterministic progress/done and Backlog/InProgress/InReview/Done state.
+description: Maintain the shared agent-orchestra task file so Hook-driven re-kick behavior follows deterministic progress/done and Backlog/InProgress/InReview/Candidates/Done state.
 ---
 
 # agent-orchestra Task File Skill
@@ -11,15 +11,22 @@ re-kicked after stopping.
 
 ## Shape
 
+The runtime initializes a quiet empty task file with `[status] done`. Once an
+Agent accepts a user task or begins discovery, investigation, implementation,
+or review work, it must switch the file to `[status] progress` before doing
+substantial work.
+
 ```ini
 [status]
-progress
+done
 
 [Backlog]
 
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 ```
@@ -33,17 +40,19 @@ Open work is any item in `[Backlog]`, `[InProgress]`, or `[InReview]`.
 
 - Add newly discovered work under `[Backlog]`.
 - Move active work from `[Backlog]` to `[InProgress]`.
-- Move work awaiting MainAgent review to `[InReview]`.
+- Move work awaiting Team or peer review to `[InReview]`.
 - Move accepted work to `[Done]`.
 - Set `[status]` to `progress` whenever open work exists or discovery is still
   active.
 - Set `[status]` to `done` only after `[Backlog]`, `[InProgress]`, and
-  `[InReview]` are empty.
+  `[InReview]` are empty and every `[Candidates]` item has a completed
+  disposition.
 - Finalize in this order: first move accepted or deferred items out of open
   sections, then verify `[Backlog]`, `[InProgress]`, and `[InReview]` are empty,
-  and only then write `[status] done`.
+  then verify the `[Candidates]` ledger, and only then write `[status] done`.
 - Never write `[status] done` while any real open item remains. `done` with
-  open work is a Hook re-kick condition, not a normal intermediate state.
+  open work or unresolved candidates is a Hook re-kick condition, not a normal
+  intermediate state.
 - Do not stop, mark a goal `blocked`, or leave the run awaiting Hook wake while
   `[Backlog]`, `[InProgress]`, or `[InReview]` contains work the AgentTeam can
   still advance.
@@ -51,13 +60,39 @@ Open work is any item in `[Backlog]`, `[InProgress]`, or `[InReview]`.
   state change, remove it from open sections before stopping and record the
   deferred item and required external action in `[Done]` or the user-facing
   report. Open sections mean autonomous work remains.
+- `[InReview]` is not MainAgent-only. It can represent peer review,
+  request-changes, blocking-objection resolution, or change-unit DRI review.
+- When a review item includes a blocking objection, record the issuer, scope,
+  reason, required resolution evidence, and disposition in the task text or a
+  shared decision log before moving it to `[Done]`.
+
+## Candidate Ledger
+
+Use `[Candidates]` for final improvement-candidate sweep evidence. Candidate
+items use this compact shape:
+
+```ini
+candidate-id: disposition=open; summary=short finding; evidence=path-or-pane
+```
+
+Candidate ids must be unique. Candidate field keys such as `disposition`,
+`summary`, and `evidence` must not be duplicated; duplicate keys make the
+candidate unresolved instead of letting later values override earlier evidence.
+Every completed candidate must include a non-empty id before `:`, a completed
+`disposition`, a `summary`, and an `evidence` pointer.
+
+Completed dispositions are `integrated`, `rejected`, `deferred`, `blocked`,
+`out-of-scope`, and `needs_user`. Missing, `open`, `backlog`, or unrecognized
+dispositions are unresolved. If `[status]` is `done` while any candidate is
+unresolved, the Stop Hook should wake MainAgent to continue or correct the
+finalization.
 
 ## Agent State Updates
 
 Agent state is runtime metadata at `$AGENT_ORCHESTRA_AGENT_STATE`. It may live
 outside the overlay workspace, so do not use `apply_patch` for it. When your
-assigned ProfessionalAgent work is ready for MainAgent review, update your own
-state with a direct metadata write:
+assigned ProfessionalAgent work is ready for Team review, update your own state
+with a direct metadata write:
 
 ```sh
 "$AGENT_ORCHESTRA_PYTHON" - <<'PY'

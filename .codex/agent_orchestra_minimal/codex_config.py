@@ -11,8 +11,10 @@ HOOK_TRUSTED_HASH = "sha256:15aa200b589589dbf1aa39731c5360abf465ca6e1a9a0671d16e
 
 
 def codex_config(workspace: Path, config_path: Path) -> str:
+    workspace_key = _toml_basic_string(str(workspace))
+    state_key = _toml_basic_string(f"{config_path}:stop:0:0")
     return f"""# {GENERATED}
-[projects."{workspace}"]
+[projects.{workspace_key}]
 trust_level = "trusted"
 
 [[hooks.Stop]]
@@ -23,6 +25,19 @@ timeout = 5
 
 [hooks.state]
 
-[hooks.state."{config_path}:stop:0:0"]
+[hooks.state.{state_key}]
 trusted_hash = "{HOOK_TRUSTED_HASH}"
 """
+
+
+def _toml_basic_string(value: str) -> str:
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\b", "\\b")
+        .replace("\t", "\\t")
+        .replace("\n", "\\n")
+        .replace("\f", "\\f")
+        .replace("\r", "\\r")
+    )
+    return f'"{escaped}"'

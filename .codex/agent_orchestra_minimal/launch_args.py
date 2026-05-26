@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 import os
 
+from .tmux_targets import optional_tmux_pane
+
 
 CODEX_OPTIONS_WITH_VALUES = frozenset(
     {
@@ -41,6 +43,8 @@ def validate_codex_args(args: Sequence[str]) -> tuple[str, ...]:
         if expect_value_for:
             if arg == "exec":
                 raise ValueError("codex_args must not request codex exec")
+            if arg == "--" or arg.startswith("-"):
+                raise ValueError(f"codex_args must not pass runtime boundary option as a value {arg!r}")
             if expect_value_for == "-c" and _is_boundary_config(arg):
                 raise ValueError(f"codex_args must not override runtime boundary config {arg!r}")
             expect_value_for = None
@@ -92,8 +96,5 @@ def _is_boundary_config(value: str) -> bool:
 
 def main_tmux_pane(agent_kind: str, tmux_pane: str | None) -> str | None:
     if agent_kind == "MainAgent":
-        return tmux_pane
-    inherited = os.environ.get("AGENT_ORCHESTRA_MAIN_TMUX_PANE")
-    if inherited:
-        return inherited
-    return os.environ.get("AGENT_ORCHESTRA_TMUX_PANE")
+        return optional_tmux_pane(tmux_pane)
+    return optional_tmux_pane(os.environ.get("AGENT_ORCHESTRA_MAIN_TMUX_PANE"))

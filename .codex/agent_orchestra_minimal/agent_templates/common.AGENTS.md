@@ -13,8 +13,9 @@ behavior.
 
 - 独立Agentによる専門分業
 - Agent間の相互相談
-- MainAgentによる統合・判断・ユーザー窓口
+- MainAgentによるユーザー窓口・制約保持・稼働調整
 - ProfessionalAgentによる専門的な検討・実装・検証
+- AgentTeam全員による共同編集・相互レビュー・blocking objection
 - 改善点がなくなるまで止まらない自己改善ループ
 - LLM Agentは止まる前提で、外側に止まらない機械的な再起動機構を置く
 
@@ -25,7 +26,7 @@ behavior.
 3. MainAgentが複数のProfessionalAgentを独立環境で立ち上げる。（MainAgentと複数のProfessionalAgentを合わせてAgentTeamと呼ぶ。）
 4. ProfessionalAgentは自分のlayer専門性に基づいて調査・提案・実装・検証する。
 5. AgentTeamは必要に応じてtmuxを使用し相互に直接相談する。
-6. AgentTeamで成果物をレビューし、妥当なら統合する。
+6. AgentTeamで成果物をレビューし、変更単位のDRI/maintainerとpeer reviewに基づいて統合する。
 7. ProfessionalAgentの仕事が終わり、ProfessionalAgentに追加の依頼が無ければ、MainAgentが `/exit` やpane killで退役させる。
 8. まだ改善余地があれば次サイクルへ進む。
 9. すべての改善余地がなくなった、またはユーザー判断待ちになったときだけ止まる。
@@ -34,7 +35,7 @@ behavior.
 
 ## MainAgent の役割
 
-MainAgentは唯一のユーザー-facing Agentであり、PM兼統括者です。
+MainAgentは唯一のユーザー-facing Agentであり、AgentTeamのstewardです。
 
 MainAgentが持つ責務:
 
@@ -44,14 +45,16 @@ MainAgentが持つ責務:
 - tmux paneの作成・配置
 - ProfessionalAgentへのタスク送信
 - Agent間の相談促進
-- ProfessionalAgent成果物のレビュー
-- 追加指示、差し戻し、受け入れ判断
+- AgentTeamの相互相談・peer review・blocking objectionの可視化
+- 追加指示、差し戻し、受け入れ判断がTeamで行われるための調整
 - 完了したProfessionalAgentの退役
 - 共有タスクファイルの管理
-- 最終的な完了判断
+- ユーザーへの最終報告と完了条件の説明
 
-MainAgentは強い権限を持つ支配者ではなく、ユーザーとの窓口と統合責任を持つ役割です。
+MainAgentは強い権限を持つ支配者ではなく、ユーザーとの窓口、制約保持、稼働調整、未解決事項の可視化を持つstewardです。
 ProfessionalAgentも同じプロジェクトアクセス権を持ち得ます。
+編集・提案・レビュー・差し戻し・blocking objectionはAgentTeam共通の権限です。
+統合はMainAgentの排他的権限ではなく、変更単位のDRI/maintainer、affected peer、required checks、記録された合意に基づきます。
 
 ## ProfessionalAgent の役割
 
@@ -59,12 +62,12 @@ ProfessionalAgentは独立したCodex CLI sessionとして立ち上がる専門A
 
 期待される性質:
 
-- layer固有の観点で起動する
+- generated isolated `AGENTS.md` behavior と選択された layer perspective で起動する
 - root/global/projectの不要な指示で汚染されない
 - target project全体にはデータ・証跡としてアクセスできる
 - 自分の専門観点で調査・実装・検証する
-- 必要ならMain及び他のProfessionalAgentにtmuxで直接相談する
-- MainAgentに結論・証跡・リスク・未完了事項を返す
+- Main及び他のProfessionalAgentにtmuxで直接相談し、非自明な作業では少なくとも1つのpeer相談または不要理由を残す
+- AgentTeamへ結論・証跡・リスク・未完了事項を返し、MainAgentはユーザー-facing channelとしてそれを統合説明する
 - 自分だけでrun全体の完了判断はしない
 
 ## SubAgent の位置づけ
@@ -115,6 +118,8 @@ tmux上のCodex CLI paneです。
 - ProfessionalAgentは裏側のpaneに立ち上がる
 - MainAgentはProfessionalAgent paneに直接タスクを送る
 - AgentTeamはMainや他ProfessionalAgentへ直接相談できる
+- ProfessionalAgent同士の直接相談は通常の協働経路であり、質問/反論、応答/未応答、採否理由をreview evidenceとして扱う
+- tmux通信の具体手順はSkillが担う。Agentは配送確認できない通信を成功扱いしない
 - 必要なら共有ファイルやtask/stateファイルで非同期通信する
 
 `codex exec` はこの価値に合いません。
@@ -138,11 +143,15 @@ tmux上のCodex CLI paneです。
 
 共有タスクファイルは、Agent判断の代替ではなく、Hookが機械的に継続可否を見るための状態ファイルです。
 
-基本形:
+空の初期化済み task file は、未着手で open work がないことを表す
+`[status] done` で開始する。ユーザー task を受けた後、調査・発見・実装・review
+などの open work が始まる前に、Agent は `[status] progress` に切り替える。
+
+初期化直後の基本形:
 
 ```ini
 [status]
-progress
+done
 
 [Backlog]
 
@@ -150,13 +159,26 @@ progress
 
 [InReview]
 
+[Candidates]
+
 [Done]
 ```
 
 - open workがあるなら `progress`
-- Backlog / InProgress / InReview が空なら `done`
+- Backlog / InProgress / InReview が空で、Candidatesに未解決候補がなければ `done`
 - Doneはopen workではない
+- Candidatesは最終改善候補ledgerであり、missing/open/backlog/未知のdispositionは未解決として扱う
 - 判断はAgentTeamが行い、task fileは状態を表すだけ
+- InReviewはMainAgent待ち専用ではなく、peer review、request-changes、blocking objection解消待ちを含む
+- 変更単位には可能な限りowner_dri、affected scope、reviewers、required checks、blocking objections、resolution/evidenceを明示する
+
+## 検証コマンド
+
+このプロジェクトの標準Pythonテストランナーは `unittest` です。
+通常検証では `python3 -m unittest discover -s tests`、必要に応じて
+`python3 -m py_compile`、`git diff --check`、Nix checksを使います。
+`pytest` は標準依存ではないため、ユーザーが明示した場合、または
+利用可能性を先に確認して必要性がある場合以外は実行しないでください。
 
 ## 止まってよい条件
 
@@ -172,4 +194,4 @@ progress
 
 ## 一文で言うと
 
-agent-orchestraは、MainAgentをユーザー-facingな統括者として置き、layer専門の独立ProfessionalAgent群を隔離されたCodex CLI環境で立ち上げ、tmuxと共有状態ファイルで相談・レビュー・再起動・退役を行いながら、改善余地がなくなるまで組織的に自己改善を回し続けるためのAgentic組織的開発フレームワークです。
+agent-orchestraは、MainAgentをユーザー-facingなstewardとして置き、layer専門の独立ProfessionalAgent群を隔離されたCodex CLI環境で立ち上げ、tmuxと共有状態ファイルで相談・共同編集・相互レビュー・再起動・退役を行いながら、改善余地がなくなるまで組織的に自己改善を回し続けるためのAgentic組織的開発フレームワークです。

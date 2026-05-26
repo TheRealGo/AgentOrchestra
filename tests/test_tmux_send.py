@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / ".codex"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from agent_orchestra_minimal.tmux_send import _effective_cli_polls_per_attempt, send_text  # noqa: E402
+from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY  # noqa: E402
+from tmux_send_helpers import FakeTmuxSend, tmux_buffer_name  # noqa: E402
+
+
+class TmuxSendTests(unittest.TestCase):
+    def test_installed_helper_script_can_show_help_directly(self) -> None:
+        helper = ROOT / ".codex" / "agent_orchestra_minimal" / "tmux_send.py"
+
+        result = subprocess.run(
+            [sys.executable, str(helper), "--help"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("agent-orchestra-tmux-send", result.stdout)
+
+    def test_cli_polls_per_attempt_has_busy_peer_floor(self) -> None:
+        self.assertEqual(_effective_cli_polls_per_attempt(20), 60)
+        self.assertEqual(_effective_cli_polls_per_attempt(60), 60)
+
+    def test_send_text_pastes_submits_captures_and_cleans_buffer(self) -> None:
+        fake = FakeTmuxSend(captures=["› MainAgent: investigate\n\ngpt-5.5 default\nWorking\n"])
+
+        result = send_text("%7", "MainAgent: investigate", runner=fake)
+
+        buffer_name = tmux_buffer_name(fake)
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(
+            fake.calls,
+            [
+                (["tmux", "load-buffer", "-b", buffer_name, "-"], "MainAgent: investigate"),
+                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
+                (["tmux", "paste-buffer", "-t", "%7", "-b", buffer_name], None),
+                (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None),
+                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
+                (["tmux", "delete-buffer", "-b", buffer_name], None),
+            ],
+        )
+
+    def test_send_text_retries_when_message_remains_in_composer(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[
+                "› ProfessionalAgent: please review the contract\n",
+                "› ProfessionalAgent: please review the contract\n\n• Working\n",
+            ]
+        )
+
+        result = send_text("%8", "ProfessionalAgent: please review the contract", runner=fake)
+
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 2)
+        self.assertEqual(len(send_key_calls), 2)
+
+    def test_send_text_polls_before_retrying_slow_codex_tui_start(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[
+                "› MainAgent: investigate slow startup\n",
+                "› MainAgent: investigate slow startup\n\n• Working\n",
+            ]
+        )
+
+        result = send_text(
+            "%8",
+            "MainAgent: investigate slow startup",
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+        )
+
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(len(send_key_calls), 1)
+
+    def test_send_text_can_wait_for_busy_peer_before_retrying_submit(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[
+                "› MainAgent: review after current work\n",
+                "› MainAgent: review after current work\n",
+                "› MainAgent: review after current work\n\nExplored\n",
+            ]
+        )
+
+        result = send_text(
+            "%8",
+            "MainAgent: review after current work",
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=3,
+        )
+
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(len(send_key_calls), 1)
+
+    def test_send_text_rejects_invalid_poll_bounds(self) -> None:
+        cases = (
+            ("max_retries", {"max_retries": -1}),
+            ("max_retries", {"max_retries": 11}),
+            ("polls_per_attempt", {"polls_per_attempt": 0}),
+            ("polls_per_attempt", {"polls_per_attempt": 61}),
+            ("poll_interval_seconds", {"poll_interval_seconds": -0.1}),
+            ("poll_interval_seconds", {"poll_interval_seconds": 2.1}),
+        )
+        for pattern, kwargs in cases:
+            with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                send_text("%8", "MainAgent: investigate", runner=FakeTmuxSend(captures=[]), **kwargs)
+
+    def test_send_text_rejects_non_deterministic_tmux_targets(self) -> None:
+        for pane_target in ("1", ":0.1", "%7 other", "%7\nsend", ""):
+            with self.subTest(pane_target=pane_target), self.assertRaisesRegex(ValueError, "pane"):
+                send_text(pane_target, "MainAgent: investigate", runner=FakeTmuxSend(captures=[]))
+
+    def test_send_text_defaults_blank_submit_key(self) -> None:
+        fake = FakeTmuxSend(captures=["› MainAgent: investigate\n\nWorking\n"])
+
+        result = send_text("%7", "MainAgent: investigate", submit_key="  ", runner=fake)
+
+        self.assertTrue(result.accepted)
+        self.assertIn((["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None), fake.calls)

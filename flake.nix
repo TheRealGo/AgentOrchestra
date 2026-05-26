@@ -66,7 +66,7 @@
             cp -R ${self} source
             chmod -R u+w source
             cd source
-            python3 -m py_compile .codex/agent_orchestra_minimal/*.py .codex/hooks/*.py tests/*.py
+            find .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 | xargs -0 python3 -m py_compile
             python3 -m unittest discover -s tests
             touch "$out"
           '';

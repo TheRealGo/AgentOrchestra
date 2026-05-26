@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from .tmux_targets import optional_tmux_pane
+
 
 AgentStateValue = Literal[
     "working",
@@ -23,6 +25,10 @@ QUIET_STATES = frozenset(
     {"ready_for_review", "done", "needs_user", "blocked", "rate_limited", "retired"}
 )
 KNOWN_STATES = ACTIVE_STATES | QUIET_STATES
+MAIN_AGENT_KIND_VALUES = frozenset({"main", "mainagent", "main_agent"})
+PROFESSIONAL_AGENT_KIND_VALUES = frozenset(
+    {"professional", "professionalagent", "professional_agent"}
+)
 
 
 @dataclass(frozen=True)
@@ -32,21 +38,36 @@ class AgentState:
     agent_kind: str = "ProfessionalAgent"
     tmux_target: str | None = None
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "state", _validate_state(str(self.state).strip().lower()))
+        object.__setattr__(self, "agent_kind", _validate_agent_kind(self.agent_kind))
+        object.__setattr__(self, "tmux_target", _optional_state_tmux_target(self.tmux_target))
+
     @classmethod
     def from_mapping(
-        cls, data: dict[str, Any], *, default_agent_id: str = ""
+        cls,
+        data: dict[str, Any],
+        *,
+        default_agent_id: str = "",
+        default_agent_kind: str = "ProfessionalAgent",
     ) -> "AgentState":
         if "state" not in data:
             raise ValueError("agent state mapping must contain state")
         return cls(
-            state=_validate_state(str(data["state"]).strip().lower()),
+            state=str(data["state"]),
             agent_id=str(data.get("agent_id") or default_agent_id),
-            agent_kind=str(data.get("agent_kind") or data.get("kind") or "ProfessionalAgent"),
-            tmux_target=_optional_string(data.get("tmux_target") or data.get("pane")),
+            agent_kind=str(data.get("agent_kind") or data.get("kind") or default_agent_kind),
+            tmux_target=_optional_state_tmux_target(data.get("tmux_target") or data.get("pane")),
         )
 
     @classmethod
-    def parse(cls, text: str, *, default_agent_id: str = "") -> "AgentState":
+    def parse(
+        cls,
+        text: str,
+        *,
+        default_agent_id: str = "",
+        default_agent_kind: str = "ProfessionalAgent",
+    ) -> "AgentState":
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if not lines:
             raise ValueError("agent state file is empty")
@@ -54,12 +75,30 @@ class AgentState:
             data = json.loads("\n".join(lines))
             if not isinstance(data, dict):
                 raise ValueError("agent state JSON must be an object")
-            return cls.from_mapping(data, default_agent_id=default_agent_id)
-        return cls(state=_validate_state(_state_value(lines)), agent_id=default_agent_id)
+            return cls.from_mapping(
+                data,
+                default_agent_id=default_agent_id,
+                default_agent_kind=default_agent_kind,
+            )
+        return cls(
+            state=_validate_state(_state_value(lines)),
+            agent_id=default_agent_id,
+            agent_kind=default_agent_kind,
+        )
 
     @classmethod
-    def read(cls, path: str | Path, *, default_agent_id: str = "") -> "AgentState":
-        return cls.parse(Path(path).read_text(encoding="utf-8"), default_agent_id=default_agent_id)
+    def read(
+        cls,
+        path: str | Path,
+        *,
+        default_agent_id: str = "",
+        default_agent_kind: str = "ProfessionalAgent",
+    ) -> "AgentState":
+        return cls.parse(
+            Path(path).read_text(encoding="utf-8"),
+            default_agent_id=default_agent_id,
+            default_agent_kind=default_agent_kind,
+        )
 
     def write(self, path: str | Path) -> Path:
         target = Path(path)
@@ -83,7 +122,7 @@ class AgentState:
 
     @property
     def is_main(self) -> bool:
-        return self.agent_kind.strip().lower() in {"main", "mainagent", "main_agent"}
+        return self.agent_kind == "MainAgent"
 
     @property
     def is_active(self) -> bool:
@@ -117,8 +156,17 @@ def _validate_state(value: str) -> AgentStateValue:
     return value  # type: ignore[return-value]
 
 
-def _optional_string(value: Any) -> str | None:
-    if value is None:
+def _validate_agent_kind(value: Any) -> str:
+    normalized = str(value or "ProfessionalAgent").strip().lower()
+    if normalized in MAIN_AGENT_KIND_VALUES:
+        return "MainAgent"
+    if normalized in PROFESSIONAL_AGENT_KIND_VALUES:
+        return "ProfessionalAgent"
+    raise ValueError(f"invalid agent kind {value!r}")
+
+
+def _optional_state_tmux_target(value: Any) -> str | None:
+    try:
+        return optional_tmux_pane(value)
+    except ValueError:
         return None
-    text = str(value).strip()
-    return text or None

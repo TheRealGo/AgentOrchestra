@@ -54,10 +54,21 @@ layer perspective and pane id:
 ```sh
 "$AGENT_ORCHESTRA_PYTHON" "$CODEX_HOME/agent_orchestra_minimal/prepare_agent_launch.py" \
   --agent-id "pro-layer-review" \
-  --lead-layer "selected layer name" \
-  --instruction-source "$AGENT_ORCHESTRA_TARGET_PROJECT/layers/selected-layer/INSTRUCTIONS.md" \
+  --protocol-layer "08" \
   --tmux-pane "$PRO_PANE"
 ```
+
+Use `--protocol-layer` with a numeric layer id such as `06`, `08`, `15`, or an
+exact protocol layer directory name. The helper resolves the layer from
+`$AGENT_ORCHESTRA_REPO_ROOT/layers`, not from the target project. Do not use the
+target project's `layers/` tree as the source for ProfessionalAgent startup
+perspective unless the user explicitly asks for project-local experimental
+layer instructions.
+
+Do not wrap environment-variable paths in single quotes when invoking
+`prepare_agent_launch.py`; single quotes prevent shell expansion and make the
+helper look for a literal `$VARIABLE` path. Use double quotes, or an
+already-resolved absolute path.
 
 The helper prints `agent_dir`, `command_json`, `env_json`, `env_sh`, `workspace`, and
 `codex_home`. It does not launch Codex. It composes the copied Agent behavior

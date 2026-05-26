@@ -8,8 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".codex"))
 
-from agent_orchestra_minimal.agent_state import ACTIVE_STATES, QUIET_STATES, AgentState  # noqa: E402
-from agent_orchestra_minimal.task_file import ALLOWED_STATUS, OPEN_WORK_SECTIONS, SharedTaskFile  # noqa: E402
+from agent_orchestra_minimal.task_file import (  # noqa: E402
+    ALLOWED_STATUS,
+    DEFAULT_TASK_FILE,
+    OPEN_WORK_SECTIONS,
+    SharedTaskFile,
+)
 
 
 CANONICAL_EMPTY_TASK_FILE = """\
@@ -21,6 +25,8 @@ done
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 completed item
@@ -46,6 +52,9 @@ active item
 [InReview]
 review item
 
+[Candidates]
+candidate-1: disposition=open; summary=consider retry helper; evidence=e2e
+
 [Done]
 done item
 """
@@ -55,7 +64,18 @@ done item
         self.assertEqual(task_file.sections["Backlog"], ["backlog item"])
         self.assertEqual(task_file.sections["InProgress"], ["active item"])
         self.assertEqual(task_file.sections["InReview"], ["review item"])
+        self.assertEqual(
+            task_file.sections["Candidates"],
+            ["candidate-1: disposition=open; summary=consider retry helper; evidence=e2e"],
+        )
         self.assertEqual(task_file.sections["Done"], ["done item"])
+
+    def test_default_task_file_is_quiet_empty_done_baseline(self) -> None:
+        task_file = SharedTaskFile.parse(DEFAULT_TASK_FILE)
+
+        self.assertEqual(task_file.status, "done")
+        self.assertFalse(task_file.has_open_work)
+        self.assertFalse(task_file.has_unresolved_candidates)
 
     def test_rejects_status_outside_spec_allowed_values(self) -> None:
         with self.assertRaises(ValueError):
@@ -69,6 +89,8 @@ paused
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 """
@@ -89,6 +111,8 @@ paused
 
 [InReview]
 
+[Candidates]
+
 [Done]
 """
                     )
@@ -106,6 +130,8 @@ done
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 """
@@ -135,6 +161,8 @@ done
 
 [InReview]
 
+[Candidates]
+
 [Done]
 
 [Blocked]
@@ -159,6 +187,8 @@ also active
 
 [InReview]
 
+[Candidates]
+
 [Done]
 """
             )
@@ -176,6 +206,8 @@ progress
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 """
@@ -201,44 +233,6 @@ class SharedTaskFileOpenWorkTests(unittest.TestCase):
 
                 self.assertTrue(task_file.has_open_work)
 
-
-class ProfessionalAgentStateTests(unittest.TestCase):
-    def test_agent_state_sets_match_stop_hook_contract(self) -> None:
-        self.assertEqual(ACTIVE_STATES, {"working", "progress", "ready"})
-        self.assertEqual(
-            QUIET_STATES,
-            {
-                "ready_for_review",
-                "done",
-                "needs_user",
-                "blocked",
-                "rate_limited",
-                "retired",
-            },
-        )
-
-    def test_active_professional_states_indicate_unfinished_work(self) -> None:
-        for state in ("working", "progress", "ready"):
-            with self.subTest(state=state):
-                agent_state = AgentState.from_mapping({"state": f" {state}\n"})
-
-                self.assertTrue(agent_state.is_active)
-                self.assertFalse(agent_state.is_quiet)
-
-    def test_quiet_professional_states_do_not_indicate_unfinished_work(self) -> None:
-        for state in (
-            "ready_for_review",
-            "done",
-            "needs_user",
-            "blocked",
-            "rate_limited",
-            "retired",
-        ):
-            with self.subTest(state=state):
-                agent_state = AgentState.from_mapping({"state": f" {state}\n"})
-
-                self.assertTrue(agent_state.is_quiet)
-                self.assertFalse(agent_state.is_active)
 
 if __name__ == "__main__":
     unittest.main()

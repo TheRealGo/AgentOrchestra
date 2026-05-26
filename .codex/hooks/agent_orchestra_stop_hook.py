@@ -15,9 +15,12 @@ from agent_orchestra_minimal.tmux_wake import run_stop_hook
 
 def main() -> int:
     try:
-        run_stop_hook(os.environ)
+        decision = run_stop_hook(os.environ)
     except Exception as exc:
         print(f"agent-orchestra Stop Hook skipped: {exc}", file=sys.stderr)
+    else:
+        if decision and "wake_delivery" in decision.reason:
+            print(f"agent-orchestra Stop Hook wake issue: {decision.reason}", file=sys.stderr)
     return 0
 
 

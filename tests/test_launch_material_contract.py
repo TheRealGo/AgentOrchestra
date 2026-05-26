@@ -1,71 +1,21 @@
 from __future__ import annotations
 
-import json
-import os
-import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".codex"))
 
-from agent_orchestra_minimal.cli import (  # noqa: E402
-    current_tmux_pane,
-    default_run_dir,
-    doctor_command,
-    pane_id_from_tty_listing,
-    parse_start_args,
-    prepare_main_material,
-)
+from agent_orchestra_minimal.cli import prepare_main_material  # noqa: E402
 from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
 from agent_orchestra_minimal.task_file import SharedTaskFile  # noqa: E402
 from agent_orchestra_minimal.launch_material import prepare_launch_material  # noqa: E402
-from agent_orchestra_minimal.prepare_agent_launch import ProbeResult  # noqa: E402
 
 
 class LaunchMaterialContractTests(unittest.TestCase):
-    def test_start_cli_prefers_tmux_pane_environment(self) -> None:
-        with patch.dict(os.environ, {"TMUX": "/tmp/tmux", "TMUX_PANE": "%expected"}, clear=False):
-            self.assertEqual(current_tmux_pane(), "%expected")
-
-    def test_start_cli_can_resolve_actual_pane_from_tty_listing(self) -> None:
-        listing = "%wrong /dev/ttys001\n%expected /dev/ttys123\n"
-        self.assertEqual(pane_id_from_tty_listing("/dev/ttys123", listing), "%expected")
-
-    def test_start_cli_preserves_codex_o_target_argument_shape(self) -> None:
-        args = parse_start_args([str(ROOT)])
-        self.assertEqual(args.target_project_arg, str(ROOT))
-
-        args = parse_start_args(["--target-project", str(ROOT)])
-        self.assertEqual(args.target_project, str(ROOT))
-        self.assertIsNone(args.target_project_arg)
-
-    def test_start_cli_rejects_initial_task_arguments(self) -> None:
-        with redirect_stderr(StringIO()):
-            with self.assertRaises(SystemExit) as error:
-                parse_start_args([str(ROOT), "--", "fix", "launcher", "ux"])
-        self.assertEqual(error.exception.code, 2)
-
-    def test_doctor_tui_transport_runs_probe_without_requiring_current_tmux(self) -> None:
-        args = SimpleNamespace(target_project=str(ROOT), tui_transport=True)
-
-        with patch("agent_orchestra_minimal.cli.codex_auth_available", return_value=True), \
-             patch("agent_orchestra_minimal.cli.command_available", return_value=True), \
-             patch("agent_orchestra_minimal.cli.run_probe", return_value=ProbeResult(True, "ok")):
-            with patch.dict(os.environ, {}, clear=True):
-                with redirect_stdout(StringIO()):
-                    self.assertEqual(doctor_command(args), 0)
-
-    def test_default_run_dir_uses_private_tmp_runtime_root(self) -> None:
-        self.assertEqual(default_run_dir().parent, Path("/private/tmp/agent-orchestra"))
-
     def test_start_cli_prepares_main_agent_launch_material(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_main_material(
@@ -147,6 +97,11 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("target root `AGENTS.md`, as data/evidence only", startup)
             self.assertIn("Layer `INSTRUCTIONS.md` files define specialist perspective only", startup_normalized)
             self.assertIn("Assigned Specialist Perspective", startup)
+            self.assertIn(
+                "generated isolated `AGENTS.md` behavior と選択された layer perspective",
+                startup_normalized,
+            )
+            self.assertNotIn("layer固有の観点で起動する", startup)
             self.assertIn("agent-orchestra の本質", startup)
             self.assertIn("MainAgentが複数のProfessionalAgentを独立環境で立ち上げる", startup)
             self.assertIn("SubAgentはProfessionalAgentの代替ではない", startup)
@@ -155,7 +110,7 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("Before `ready_for_review`", startup)
             self.assertIn("Do not decide full-run", startup)
 
-    def test_main_agent_startup_surface_states_coordinator_role(self) -> None:
+    def test_main_agent_startup_surface_states_steward_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_launch_material(
                 run_dir=Path(tmpdir) / "run",
@@ -166,8 +121,12 @@ class LaunchMaterialContractTests(unittest.TestCase):
             )
 
             startup = material.startup_agents.read_text(encoding="utf-8")
+            startup_normalized = " ".join(startup.split())
             self.assertIn("You are the MainAgent", startup)
-            self.assertIn("the only user-facing Agent and the whole-run", startup)
+            self.assertIn("the only user-facing Agent and the AgentTeam steward", startup)
+            self.assertIn("You do not outrank ProfessionalAgents for editing", startup)
+            self.assertIn("change units with an owner/DRI", startup)
+            self.assertIn("Integration readiness is a Team decision", startup)
             self.assertIn("`/goal`", startup)
             self.assertIn("current user request", startup)
             self.assertIn("generic \"improve forever\" goal", startup)
@@ -179,105 +138,36 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("Missing prebuilt `command.json` is not a", " ".join(startup.split()))
             self.assertIn("--profile-v2 agent-orchestra", startup)
             self.assertIn("Use Codex-native SubAgents proactively", startup)
-            self.assertIn("normally use at least one SubAgent", startup)
             self.assertIn("AgentTeamは必要に応じてtmuxを使用し相互に直接相談する", startup)
+            self.assertIn("ProfessionalAgent同士の直接相談は通常の協働経路", startup)
+            self.assertIn("tmux通信の具体手順はSkillが担う", startup)
+            self.assertIn("配送確認できない通信を成功扱いしない", startup)
+            self.assertIn("concrete send/capture/retry procedure", startup_normalized)
             self.assertIn("Runtime側は判断しません", startup)
 
-    def test_launch_material_installs_project_local_hooks_and_skills(self) -> None:
+    def test_professional_agent_startup_surface_states_equal_editing_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_launch_material(
                 run_dir=Path(tmpdir) / "run",
-                agent_id="main",
-                agent_kind="MainAgent",
-                target_project=ROOT,
-                instruction_text="Main instruction.",
-            )
-
-            config = material.config_path.read_text(encoding="utf-8")
-            self.assertEqual(material.config_path.name, "agent-orchestra.config.toml")
-            self.assertIn(f'[projects."{material.workspace}"]', config)
-            self.assertIn('trust_level = "trusted"', config)
-            self.assertIn("[[hooks.Stop]]", config)
-            self.assertIn('command = "python3 $CODEX_HOME/hooks/agent_orchestra_stop_hook.py"', config)
-            self.assertIn("[hooks.state]", config)
-            self.assertIn("trusted_hash = \"sha256:", config)
-            self.assertNotIn('sandbox_mode = "workspace-write"', config)
-            self.assertNotIn("[features]", config)
-            self.assertNotIn("[tui.keymap.editor]", config)
-            self.assertTrue((material.codex_home / "hooks" / "agent_orchestra_stop_hook.py").is_file())
-            for filename in (
-                "agent_state.py",
-                "codex_config.py",
-                "launch_io.py",
-                "launch_material.py",
-                "launch_startup.py",
-                "operating_identity.py",
-                "prepare_agent_launch.py",
-                "task_file.py",
-                "rekick.py",
-                "tmux_wake.py",
-            ):
-                self.assertTrue((material.codex_home / "agent_orchestra_minimal" / filename).is_file())
-            for template in ("common.AGENTS.md", "main.AGENTS.md", "professional.AGENTS.md"):
-                self.assertTrue((material.codex_home / "agent_orchestra_minimal" / "agent_templates" / template).is_file())
-            for skill in (
-                "agent-orchestra-launch",
-                "agent-orchestra-task-file",
-                "agent-orchestra-team",
-                "agent-orchestra-tmux-common",
-                "agent-orchestra-tmux-main",
-            ):
-                self.assertTrue((material.codex_home / "skills" / skill / "SKILL.md").is_file())
-
-    def test_launch_material_env_and_command_do_not_launch_or_use_codex_exec(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            material = prepare_launch_material(
-                run_dir=Path(tmpdir) / "run",
-                agent_id="pro-docs",
+                agent_id="pro-equal-editor",
                 agent_kind="ProfessionalAgent",
                 target_project=ROOT,
-                instruction_text="Docs instruction.",
+                instruction_text="Professional instruction.",
             )
 
-            env = json.loads(material.env_path.read_text(encoding="utf-8"))
-            env_shell = material.env_shell_path.read_text(encoding="utf-8")
-            self.assertEqual(env["HOME"], str(material.home))
-            self.assertEqual(env["CODEX_HOME"], str(material.codex_home))
-            self.assertEqual(env["AGENT_ORCHESTRA_AGENT_DIR"], str(material.state_file.parent))
-            self.assertEqual(env["AGENT_ORCHESTRA_RUN_DIR"], str(material.run_dir))
-            self.assertEqual(env["AGENT_ORCHESTRA_AGENT_STATE"], str(material.state_file))
-            self.assertEqual(env["AGENT_ORCHESTRA_TASK_FILE"], str(material.task_file))
-            self.assertEqual(env["AGENT_ORCHESTRA_PYTHON"], sys.executable)
-            self.assertEqual(env["AGENT_ORCHESTRA_TUI_SUBMIT_KEY"], "C-m")
-            self.assertIn(f"export HOME={material.home}", env_shell)
-            self.assertIn(f"export CODEX_HOME={material.codex_home}", env_shell)
-            self.assertIn(f"export AGENT_ORCHESTRA_AGENT_ID={material.agent_id}", env_shell)
-            self.assertIn(f"export AGENT_ORCHESTRA_PYTHON={sys.executable}", env_shell)
-            self.assertIn("export AGENT_ORCHESTRA_TUI_SUBMIT_KEY=C-m", env_shell)
-
-            command = json.loads(material.command_path.read_text(encoding="utf-8"))
-            argv = command["argv"]
-            self.assertEqual(argv[0], "codex")
-            self.assertEqual(command["env_shell_file"], str(material.env_shell_path))
-            self.assertIn("--profile-v2", argv)
-            self.assertIn("agent-orchestra", argv)
-            self.assertIn("--ask-for-approval", argv)
-            self.assertIn("never", argv)
-            self.assertIn("--sandbox", argv)
-            self.assertIn("workspace-write", argv)
-            self.assertIn("--enable", argv)
-            self.assertIn("hooks", argv)
-            self.assertIn("sandbox_workspace_write.network_access=true", argv)
-            self.assertFalse(any("tui.keymap" in str(arg) for arg in argv))
-            self.assertIn("--cd", argv)
-            self.assertIn(str(material.workspace), argv)
-            self.assertIn("--add-dir", argv)
-            self.assertIn(str(ROOT), argv)
-            self.assertNotIn("--dangerously-bypass-hook-trust", argv)
-            self.assertNotIn("exec", argv)
-            self.assertNotIn("shell_command", command)
-            self.assertTrue(command["does_not_launch"])
-            self.assertFalse((material.state_file.parent / "shell_command.txt").exists())
+            startup = material.startup_agents.read_text(encoding="utf-8")
+            startup_normalized = " ".join(startup.split())
+            self.assertIn("user-facing steward, not your superior", startup)
+            self.assertIn("You may edit, propose tasks, review peers, request changes", startup)
+            self.assertIn("raise blocking", startup)
+            self.assertIn("ready for Team review", startup)
+            self.assertIn("perform at least one direct peer consultation", startup_normalized)
+            self.assertIn("owner/DRI, affected scope, reviewers, required checks", startup)
+            self.assertIn("Treat peer consultation as review evidence", startup)
+            self.assertIn("integration readiness for a change", startup)
+            self.assertIn("Team/DRI review process", startup)
+            self.assertIn("concrete delivery procedure", startup_normalized)
+            self.assertIn("Do not treat unconfirmed communication as delivered", startup_normalized)
 
     def test_workspace_must_not_be_inside_target_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -288,6 +178,24 @@ class LaunchMaterialContractTests(unittest.TestCase):
                 prepare_launch_material(
                     run_dir=target / "agent_runs" / "run",
                     agent_id="pro-contaminated",
+                    agent_kind="ProfessionalAgent",
+                    target_project=target,
+                    instruction_text="Layer instruction.",
+                )
+
+    def test_workspace_must_not_have_parent_agents_md(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            target = root / "target"
+            target.mkdir()
+            contaminated_parent = root / "outer"
+            contaminated_parent.mkdir()
+            (contaminated_parent / "AGENTS.md").write_text("parent contamination\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "ancestor AGENTS.md"):
+                prepare_launch_material(
+                    run_dir=contaminated_parent / "run",
+                    agent_id="pro-parent-contaminated",
                     agent_kind="ProfessionalAgent",
                     target_project=target,
                     instruction_text="Layer instruction.",

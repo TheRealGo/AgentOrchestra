@@ -1,22 +1,26 @@
 from __future__ import annotations
 
+import sys
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CODEX = ROOT / ".codex"
+sys.path.insert(0, str(CODEX))
 
 
 class RuntimeBoundaryTests(unittest.TestCase):
     def test_runtime_owned_codex_tree_contains_required_runtime_material(self) -> None:
         required = {
             "agent_orchestra_minimal/agent_state.py",
+            "agent_orchestra_minimal/candidate_ledger.py",
             "agent_orchestra_minimal/agent_templates/common.AGENTS.md",
             "agent_orchestra_minimal/agent_templates/main.AGENTS.md",
             "agent_orchestra_minimal/agent_templates/professional.AGENTS.md",
             "agent_orchestra_minimal/cli.py",
             "agent_orchestra_minimal/codex_config.py",
+            "agent_orchestra_minimal/doctor.py",
             "agent_orchestra_minimal/launch_material.py",
             "agent_orchestra_minimal/launch_io.py",
             "agent_orchestra_minimal/launch_startup.py",
@@ -25,6 +29,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
             "agent_orchestra_minimal/prepare_agent_launch.py",
             "agent_orchestra_minimal/rekick.py",
             "agent_orchestra_minimal/task_file.py",
+            "agent_orchestra_minimal/tmux_delivery.py",
+            "agent_orchestra_minimal/tmux_targets.py",
             "agent_orchestra_minimal/tmux_wake.py",
             "bin/codex-o",
             "hooks/agent_orchestra_stop_hook.py",
@@ -51,6 +57,17 @@ class RuntimeBoundaryTests(unittest.TestCase):
         }
 
         self.assertLessEqual(required, actual)
+
+    def test_launch_install_copies_all_minimal_runtime_python_modules(self) -> None:
+        from agent_orchestra_minimal.launch_io import RUNTIME_FILES
+
+        runtime_modules = {
+            path.name
+            for path in (CODEX / "agent_orchestra_minimal").glob("*.py")
+            if path.name != "__init__.py"
+        }
+
+        self.assertLessEqual(runtime_modules, set(RUNTIME_FILES))
 
     def test_legacy_shell_stop_hook_is_not_part_of_minimal_runtime_contract(self) -> None:
         legacy_hook = CODEX / "hooks" / "agent_orchestra_stop_hook.sh"
@@ -97,53 +114,45 @@ class RuntimeBoundaryTests(unittest.TestCase):
         professional = (
             CODEX / "agent_orchestra_minimal" / "agent_templates" / "professional.AGENTS.md"
         ).read_text(encoding="utf-8")
+        professional_normalized = " ".join(professional.split())
         runtime = (CODEX / "agent_orchestra_minimal" / "operating_identity.py").read_text(encoding="utf-8")
+        team = (CODEX / "skills" / "agent-orchestra-team" / "SKILL.md").read_text(encoding="utf-8")
 
         self.assertIn("Layer `INSTRUCTIONS.md` files define specialist perspective only", common_normalized)
+        self.assertIn("generated isolated `AGENTS.md` behavior と選択された layer perspective", common_normalized)
+        self.assertNotIn("layer固有の観点で起動する", common)
         self.assertIn("You are the MainAgent", main)
+        self.assertIn("AgentTeam steward", main)
+        self.assertIn("You do not outrank ProfessionalAgents for editing", main)
+        self.assertIn("Integration readiness is a Team decision", main)
+        main_normalized = " ".join(main.split())
+        self.assertIn("Do not ask ProfessionalAgents to run `pytest`", main_normalized)
+        self.assertIn("do not run `pytest` yourself", main_normalized)
+        self.assertIn("標準Pythonテストランナーは `unittest`", common)
+        self.assertIn("`python3 -m unittest discover -s tests`", common)
+        self.assertIn("`pytest` は標準依存ではない", common)
+        self.assertIn("初期化済み task file", common)
+        self.assertIn("`[status] done` で開始する", common)
+        self.assertIn("`[status] progress` に切り替える", common)
         self.assertIn("You are a ProfessionalAgent", professional)
-        self.assertNotIn("AgentTeamは必要に応じてtmuxを使用し相互に直接相談する", runtime)
-
-    def test_tmux_skills_are_split_by_common_and_main_operations(self) -> None:
-        common = (CODEX / "skills" / "agent-orchestra-tmux-common" / "SKILL.md").read_text(encoding="utf-8")
-        main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
-        common_normalized = " ".join(common.split())
-
-        self.assertIn("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", common_normalized)
-        self.assertIn("Do not prepend `Space`", common_normalized)
-        self.assertNotIn("Space C-j", common_normalized)
-        self.assertIn("$AGENT_ORCHESTRA_TMUX_PANE", common_normalized)
-        self.assertIn("Do not infer your own pane from a bare `tmux display-message`", common_normalized)
-        self.assertIn("Pasting text into the composer is not delivery", common)
-        self.assertIn("capture-pane", common)
-        self.assertNotIn("split-window", common)
-
-        self.assertIn("MainAgent manages ProfessionalAgent panes", main)
-        self.assertIn("split-window", main)
-        self.assertIn("agent-orchestra-launch", main)
-        self.assertIn("kill-pane", main)
-        self.assertIn("not a hard permission boundary", main)
-
-    def test_tmux_main_skill_documents_retirement_cleanup_sequence(self) -> None:
-        main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
-        normalized = " ".join(main.split())
-
+        self.assertIn("not your superior", professional)
+        self.assertIn("review peers, request changes", professional)
+        self.assertIn("Treat peer consultation as review evidence", professional)
+        self.assertIn("move or record your scoped task in the shared task file as awaiting review", professional_normalized)
+        self.assertIn("Move your scoped task to `Done` only when the accepted disposition is known", professional_normalized)
+        self.assertIn("do not use this task update to decide whole-run completion", professional_normalized)
         for phrase in (
-            "Write that ProfessionalAgent state to `retired`",
-            "Send `/exit`",
-            "Verify pane cleanup and use `kill-pane`",
-            "Set `retired` before `/exit`",
-            "Retirement is not complete until the pane is gone",
-            "capture any final output and force-close it",
-            "Do not finish a run with accepted ProfessionalAgent panes still present",
-            "does not replace pane cleanup",
+            "When you run or recommend verification",
+            "`python3 -m unittest discover -s tests`",
+            "Do not run or request `pytest`",
         ):
-            self.assertIn(phrase, normalized)
-
-        self.assertIn('tmux send-keys -t "$PANE" "/exit" "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"', main)
-        self.assertIn("tmux list-panes -a -F '#{pane_id}' | rg -qxF \"$PANE\"", main)
-        self.assertIn('tmux capture-pane -t "$PANE" -p -S -120', main)
-        self.assertIn('tmux kill-pane -t "$PANE"', main)
+            self.assertIn(phrase, professional_normalized)
+        self.assertIn("## Verification", team)
+        self.assertIn("`python3 -m unittest discover -s tests`", team)
+        self.assertIn("Do not ask Agents to run `pytest`", team)
+        self.assertNotIn("AgentTeamは必要に応じてtmuxを使用し相互に直接相談する", runtime)
+        self.assertNotIn("Integration readiness is a Team decision", runtime)
+        self.assertNotIn("not your superior", runtime)
 
     def test_all_python_code_files_stay_under_hard_300_line_limit(self) -> None:
         roots = (
@@ -153,7 +162,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
         )
 
         for root in roots:
-            for path in root.glob("*.py"):
+            for path in root.rglob("*.py"):
                 if path.name == "__init__.py":
                     continue
                 with self.subTest(path=path.relative_to(ROOT)):

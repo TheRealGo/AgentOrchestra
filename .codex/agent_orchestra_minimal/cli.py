@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -11,8 +10,8 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from agent_orchestra_minimal.doctor import doctor_command
 from agent_orchestra_minimal.launch_material import LaunchMaterial, prepare_launch_material
-from agent_orchestra_minimal.prepare_agent_launch import run_probe
 
 
 MAIN_LAYER_PREFIX = "15_"
@@ -69,35 +68,6 @@ def start_main(args: argparse.Namespace) -> int:
     os.execvpe("codex", material.command["argv"], env)
     return 0
 
-def doctor_command(args: argparse.Namespace) -> int:
-    target = Path(args.target_project).expanduser().resolve()
-    failures: list[str] = []
-    if not target.is_dir():
-        failures.append(f"target project is not a directory: {target}")
-    if not codex_auth_available():
-        failures.append("Codex auth.json was not found in CODEX_HOME or ~/.codex.")
-    for command in ("codex", "tmux"):
-        if not command_available(command):
-            failures.append(f"required command is not available on PATH: {command}")
-    if "TMUX" not in os.environ and not args.tui_transport:
-        failures.append("not running inside tmux")
-
-    if failures:
-        print("agent-orchestra doctor: failed", file=sys.stderr)
-        for failure in failures:
-            print(f"- {failure}", file=sys.stderr)
-        return 1
-    if args.tui_transport:
-        probe = run_probe(codex_binary="codex")
-        if not probe.ok:
-            print("agent-orchestra doctor: failed", file=sys.stderr)
-            print(f"- TUI transport probe failed: {probe.message}", file=sys.stderr)
-            if probe.capture_tail:
-                print(probe.capture_tail, file=sys.stderr)
-            return 1
-    print("agent-orchestra doctor: ok")
-    return 0
-
 
 def prepare_main_material(
     *,
@@ -108,7 +78,9 @@ def prepare_main_material(
 ) -> LaunchMaterial:
     target_project = target_project.expanduser().resolve()
     run_dir = run_dir.expanduser().resolve()
-    layer_source = main_layer_instruction(protocol_root())
+    root = protocol_root()
+    os.environ.setdefault("AGENT_ORCHESTRA_REPO_ROOT", str(root))
+    layer_source = main_layer_instruction(root)
     if layer_source is None:
         raise FileNotFoundError("agent-orchestra protocol layer 15 INSTRUCTIONS.md was not found")
     return prepare_launch_material(
@@ -140,14 +112,6 @@ def default_run_dir() -> Path:
     return Path("/private/tmp/agent-orchestra") / f"{stamp}-agent-orchestra"
 
 
-def codex_auth_available() -> bool:
-    candidates: list[Path] = []
-    if codex_home := os.environ.get("CODEX_HOME"):
-        candidates.append(Path(codex_home).expanduser() / "auth.json")
-    candidates.append(Path.home() / ".codex" / "auth.json")
-    return any(path.is_file() for path in candidates)
-
-
 def current_tmux_pane() -> str | None:
     if "TMUX" not in os.environ:
         return None
@@ -155,18 +119,7 @@ def current_tmux_pane() -> str | None:
         return pane
     if pane := os.environ.get("TMUX_PANE"):
         return pane
-    try:
-        result = subprocess.run(
-            ["tmux", "display-message", "-p", "#{pane_id}"],
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    pane = result.stdout.strip()
-    return pane or None
+    return None
 
 
 def pane_from_current_tty() -> str | None:
@@ -198,10 +151,6 @@ def pane_id_from_tty_listing(current_tty: str, listing: str) -> str | None:
         if pane and pane_tty.strip() == current_tty:
             return pane
     return None
-
-
-def command_available(command: str) -> bool:
-    return shutil.which(command) is not None
 
 
 def protocol_root() -> Path:

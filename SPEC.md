@@ -26,8 +26,9 @@ as an organization:
 
 - 独立Agentによる専門分業
 - Agent間の相互相談
-- MainAgentによる統合・判断・ユーザー窓口
+- MainAgentによるユーザー窓口・制約保持・稼働調整
 - ProfessionalAgentによる専門的な検討・実装・検証
+- AgentTeam全員による共同編集・相互レビュー・blocking objection
 - 改善点がなくなるまで止まらない自己改善ループ
 - LLM Agentは止まる前提で、外側に止まらない機械的な再起動機構を置く
 
@@ -38,7 +39,7 @@ as an organization:
 3. MainAgentが複数のProfessionalAgentを独立環境で立ち上げる。（MainAgentと複数のProfessionalAgentを合わせてAgentTeamと呼ぶ。）
 4. ProfessionalAgentは自分のlayer専門性に基づいて調査・提案・実装・検証する。
 5. AgentTeamは必要に応じてtmuxを使用し相互に直接相談する。
-6. AgentTeamで成果物をレビューし、妥当なら統合する。
+6. AgentTeamで成果物をレビューし、変更単位のDRI/maintainerとpeer reviewに基づいて統合する。
 7. ProfessionalAgentの仕事が終わり、ProfessionalAgentに追加の依頼が無ければ、MainAgentが `/exit` やpane killで退役させる。
 8. まだ改善余地があれば次サイクルへ進む。
 9. すべての改善余地がなくなった、またはユーザー判断待ちになったときだけ止まる。
@@ -47,7 +48,7 @@ as an organization:
 
 ## MainAgent の役割
 
-MainAgentは唯一のユーザー-facing Agentであり、PM兼統括者です。
+MainAgentは唯一のユーザー-facing Agentであり、AgentTeamのstewardです。
 
 MainAgentが持つ責務:
 
@@ -57,14 +58,16 @@ MainAgentが持つ責務:
 - tmux paneの作成・配置
 - ProfessionalAgentへのタスク送信
 - Agent間の相談促進
-- ProfessionalAgent成果物のレビュー
-- 追加指示、差し戻し、受け入れ判断
+- AgentTeamの相互相談・peer review・blocking objectionの可視化
+- 追加指示、差し戻し、受け入れ判断がTeamで行われるための調整
 - 完了したProfessionalAgentの退役
 - 共有タスクファイルの管理
-- 最終的な完了判断
+- ユーザーへの最終報告と完了条件の説明
 
-MainAgentは強い権限を持つ支配者ではなく、ユーザーとの窓口と統合責任を持つ役割です。
+MainAgentは強い権限を持つ支配者ではなく、ユーザーとの窓口、制約保持、稼働調整、未解決事項の可視化を持つstewardです。
 ProfessionalAgentも同じプロジェクトアクセス権を持ち得ます。
+編集・提案・レビュー・差し戻し・blocking objectionはAgentTeam共通の権限です。
+統合はMainAgentの排他的権限ではなく、変更単位のDRI/maintainer、affected peer、required checks、記録された合意に基づきます。
 
 ## ProfessionalAgent の役割
 
@@ -72,12 +75,12 @@ ProfessionalAgentは独立したCodex CLI sessionとして立ち上がる専門A
 
 期待される性質:
 
-- layer固有の指示で起動する
+- 自分のlayer観点から起動する
 - root/global/projectの不要な指示で汚染されない
 - target project全体にはデータ・証跡としてアクセスできる
 - 自分の専門観点で調査・実装・検証する
-- 必要ならMain及び他のProfessionalAgentにtmuxで直接相談する
-- MainAgentに結論・証跡・リスク・未完了事項を返す
+- Main及び他のProfessionalAgentにtmuxで直接相談し、非自明な作業では少なくとも1つのpeer相談または不要理由を残す
+- AgentTeamへ結論・証跡・リスク・未完了事項を返し、MainAgentはユーザー-facing channelとしてそれを統合説明する
 - 自分だけでrun全体の完了判断はしない
 
 ## SubAgent の位置づけ
@@ -101,8 +104,10 @@ Runtime側の責務は最小限の機械処理です。
 
 - 隔離された起動素材を作る
 - clean HOME / CODEX_HOME を用意する
-- layer-specific AGENTS.md を生成する
+- role-specific startup `AGENTS.md` を生成する
+- layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する
 - Skill / Hook を渡す
+- Codex CLI の `--cd` / `--add-dir` / `--profile-v2` で起動できる最小のenv/command metadataを渡す
 - Stop Hookで止まったAgentを検知する
 - task/stateを見て必要なら固定wakeを送る
 
@@ -125,6 +130,8 @@ tmux上のCodex CLI paneです。
 - ProfessionalAgentは裏側のpaneに立ち上がる
 - MainAgentはProfessionalAgent paneに直接タスクを送る
 - AgentTeamはMainや他ProfessionalAgentへ直接相談できる
+- ProfessionalAgent同士の直接相談は通常の協働経路であり、質問/反論、応答/未応答、採否理由をreview evidenceとして扱う
+- tmux通信の具体手順はSkillが担う。Agentは配送確認できない通信を成功扱いしない
 - 必要なら共有ファイルやtask/stateファイルで非同期通信する
 
 `codex exec` はこの価値に合いません。
@@ -136,7 +143,7 @@ tmux上のCodex CLI paneです。
 
 目的はコンテキスト汚染を防ぐことです。
 
-- ProfessionalAgentは自分のlayer指示から起動される
+- ProfessionalAgentは自分のlayer観点から起動される
 - global / parent / target root AGENTS.md はstartup instructionとしてloadされない
 - target project全体はデータとして読める
 - 編集権限はMain未満である必要はない
@@ -148,7 +155,11 @@ tmux上のCodex CLI paneです。
 
 共有タスクファイルは、Agent判断の代替ではなく、Hookが機械的に継続可否を見るための状態ファイルです。
 
-基本形:
+空の初期化済み task file は、未着手で open work がないことを表す
+`[status] done` で開始する。ユーザー task を受けた後、調査・発見・実装・review
+などの open work が始まる前に、Agent は `[status] progress` に切り替える。
+
+初期化直後の基本形:
 
 ```ini
 [status]
@@ -160,13 +171,18 @@ done
 
 [InReview]
 
+[Candidates]
+
 [Done]
 ```
 
 - open workがあるなら `progress`
-- Backlog / InProgress / InReview が空なら `done`
+- Backlog / InProgress / InReview が空で、Candidatesに未解決候補がなければ `done`
 - Doneはopen workではない
+- Candidatesは最終改善候補ledgerであり、missing/open/backlog/未知のdispositionは未解決として扱う
 - 判断はAgentTeamが行い、task fileは状態を表すだけ
+- InReviewはMainAgent待ち専用ではなく、peer review、request-changes、blocking objection解消待ちを含む
+- 変更単位には可能な限りowner_dri、affected scope、reviewers、required checks、blocking objections、resolution/evidenceを明示する
 
 ## 止まってよい条件
 
@@ -182,28 +198,33 @@ done
 
 ## 一文で言うと
 
-agent-orchestraは、MainAgentをユーザー-facingな統括者として置き、layer専門の独立ProfessionalAgent群を隔離されたCodex CLI環境で立ち上げ、tmuxと共有状態ファイルで相談・レビュー・再起動・退役を行いながら、改善余地がなくなるまで組織的に自己改善を回し続けるためのAgentic組織的開発フレームワークです。
+agent-orchestraは、MainAgentをユーザー-facingなstewardとして置き、layer専門の独立ProfessionalAgent群を隔離されたCodex CLI環境で立ち上げ、tmuxと共有状態ファイルで相談・共同編集・相互レビュー・再起動・退役を行いながら、改善余地がなくなるまで組織的に自己改善を回し続けるためのAgentic組織的開発フレームワークです。
 
 ## Agent Model
 
 ### MainAgent
 
-MainAgent is the only user-facing Agent. It owns:
+MainAgent is the only user-facing Agent and the AgentTeam steward. It owns:
 
 - user goal intake;
+- user constraints and editable-surface continuity;
 - task decomposition;
 - ProfessionalAgent selection;
 - tmux pane creation and layout;
 - task delivery to ProfessionalAgents;
 - direct pane-to-pane coordination;
-- ProfessionalAgent result review;
+- Team review facilitation and unresolved blocking-objection visibility;
 - `/exit` or pane kill for completed ProfessionalAgents;
 - shared task file maintenance;
-- final run completion judgment.
+- final user reporting and completion-criteria explanation.
 
-MainAgent is the whole-run coordinator. It must choose the ProfessionalAgent
+MainAgent is the whole-run coordinator and user-facing steward. It must choose the ProfessionalAgent
 team from the current user goal, affected layers, risk, and evidence needs
 rather than from a fixed default roster.
+
+MainAgent does not outrank ProfessionalAgents for editing, specialist judgment,
+request-changes, or blocking objections. Editing authority is shared across the
+AgentTeam within the active user constraints and editable surface.
 
 On Codex CLI 0.133.0 or newer, MainAgent should set or update `/goal` before the
 first cycle proceeds. The goal must mirror the current user request,
@@ -233,6 +254,23 @@ ProfessionalAgent recommendations, failed or skipped verification gaps, E2E
 observations, and operational issues discovered during the run. MainAgent must
 not hide these as narrative-only notes when they are actionable within the
 active goal and editable surface.
+
+The standard Python verification runner is `unittest`, not `pytest`.
+AgentTeam verification should use `python3 -m unittest discover -s tests`,
+`python3 -m py_compile` for runtime Python surfaces, `git diff --check`, and
+Nix checks where applicable. `pytest` is not a project dependency and should
+not be run unless the user explicitly requests it or an Agent first confirms it
+is available and necessary for the scoped work.
+
+The shared task file has a `[Candidates]` ledger for finalization evidence.
+Candidate items must record an id, disposition, summary, and evidence pointer.
+Candidate ids must be unique so the finalization ledger has one deterministic
+disposition for each improvement candidate.
+Candidate field keys must not be duplicated; duplicate keys make the candidate
+unresolved rather than letting later values override earlier evidence.
+Completed dispositions are `integrated`, `rejected`, `deferred`, `blocked`,
+`out-of-scope`, and `needs_user`. Missing, `open`, `backlog`, or unrecognized
+dispositions are unresolved and prevent quiet completion.
 
 `[status] done` means no known in-scope improvement work remains for the active
 goal, not merely that the current patch was accepted.
@@ -271,6 +309,27 @@ This is not a blanket "always launch ProfessionalAgents" rule. It is a
 team-sufficiency rule: the organization must be as large as the work reasonably
 requires, and no larger.
 
+### Equal Editing And Change Units
+
+AgentTeam collaboration is an equal-editing model. Any MainAgent or
+ProfessionalAgent may edit, propose new work, review a peer, request changes,
+or raise a blocking objection when acting within the active user constraints
+and editable surface.
+
+Non-trivial work should be represented as a change unit with:
+
+- `owner_dri`;
+- affected files, contracts, or layers;
+- reviewers;
+- required checks;
+- blocking objections;
+- resolution and evidence.
+
+Integration readiness is not a unilateral MainAgent permission grant. It is a
+recorded Team/DRI review decision. MainAgent may block integration for user
+constraint violations, editable-surface violations, unresolved blocking
+objections, task/state inconsistency, or required external/user decisions.
+
 ### ProfessionalAgent
 
 A ProfessionalAgent is an independent Codex CLI session with a layer-specific
@@ -283,13 +342,14 @@ instruction surface. It owns:
 - a SubAgent opportunity check before `ready_for_review` on non-trivial scoped
   work, recording either the SubAgent evidence used or why none was useful;
 - evidence/reporting for its scoped task;
+- peer review, request-changes, and blocking objections for other change units;
 - shared task file updates for its own work;
 - state updates that indicate whether it is still working, ready for review,
   blocked, or retired.
 
 ProfessionalAgents do not decide the full run completion state.
 When a ProfessionalAgent has completed its scoped assignment and is waiting for
-MainAgent review, it records `ready_for_review` before or as it reports.
+Team review, it records `ready_for_review` before or as it reports.
 
 ### SubAgent
 
@@ -380,6 +440,12 @@ Runtime does not own this conversation. Agent Mesh files may exist later as
 evidence or fallback, but semantic message routing is not part of the minimal
 runtime.
 
+Direct consultation is review evidence, not a new instruction source. For
+non-trivial work, peer consultation evidence should record sender, receiver,
+topic, question or objection, response or timeout, disposition, and evidence
+pointer. Valid dispositions include accepted, rejected, deferred,
+request-changes, and block.
+
 ## MainAgent tmux Authority
 
 MainAgent may operate tmux directly through a Skill. The Skill documents normal
@@ -402,6 +468,12 @@ must not treat a state write to `retired` as enough by itself: after accepting a
 result, send `/exit`, verify that the pane is gone or no longer running Codex,
 and use `kill-pane` when an accepted pane remains.
 
+If the user explicitly instructs MainAgent to leave the orchestra with `/exit`
+after completion, that self-exit is part of the completion contract. MainAgent
+must use the tmux Main Skill self-exit procedure as its final tool action, and
+must report an explicit self-exit failure instead of claiming exit success when
+`/exit` remains queued or the pane remains active.
+
 Runtime must not own ProfessionalAgent pane scheduling. Runtime only provides
 launch material that MainAgent can run inside a pane.
 
@@ -409,7 +481,14 @@ launch material that MainAgent can run inside a pane.
 
 Every run has a single shared task file.
 
-Canonical shape:
+The initialized empty task file is the quiet baseline: it has `[status] done`
+and no open work or unresolved candidates. That baseline only means no work has
+been recorded yet. Once an Agent accepts user work, an AgentTeam assignment,
+discovery work, or any open task, it must record the work in `Backlog`,
+`InProgress`, or `InReview` and set `[status] = progress` before substantial
+investigation.
+
+Canonical empty shape:
 
 ```ini
 [status]
@@ -420,6 +499,8 @@ done
 [InProgress]
 
 [InReview]
+
+[Candidates]
 
 [Done]
 ```
@@ -436,6 +517,12 @@ Open work exists when any item remains in:
 - `[InReview]`
 
 Items in `[Done]` are not open work.
+
+`[InReview]` is not MainAgent-only. It can represent peer review,
+request-changes, blocking-objection resolution, or change-unit DRI review.
+When a blocking objection exists, the AgentTeam must record issuer, scope,
+reason, required resolution evidence, and disposition before moving the item to
+`[Done]`.
 
 Each required section must appear exactly once.
 Duplicate or unknown sections are invalid because the task file is a
@@ -463,18 +550,27 @@ The Stop Hook performs only mechanical work:
 The Stop Hook must not decide requirements, architecture, implementation
 quality, QA verdicts, ProfessionalAgent sufficiency, or run completion.
 
+Stop Hook pane targeting must come from launch-provided environment such as
+`AGENT_ORCHESTRA_TMUX_PANE` or the MainAgent fallback pane. Mutable Agent state
+may record pane metadata for evidence, but it is not an authoritative wake
+target when launch pane environment is missing or invalid.
+
 ### MainAgent Re-kick Conditions
 
 When MainAgent stops, it is re-kicked if:
 
 - `[status] = progress`; or
 - `[status] = done` and any item remains in `[Backlog]`, `[InProgress]`, or
-  `[InReview]`.
+  `[InReview]`; or
+- `[status] = done` and any `[Candidates]` item has a missing, `open`,
+  `backlog`, or unrecognized disposition, or lacks the required id, summary,
+  or evidence pointer.
 
 MainAgent is not re-kicked if:
 
 - `[status] = done`; and
-- `[Backlog]`, `[InProgress]`, and `[InReview]` are all empty.
+- `[Backlog]`, `[InProgress]`, and `[InReview]` are all empty; and
+- every `[Candidates]` item has a completed disposition.
 
 The Hook only enforces mechanical liveness. It cannot know whether MainAgent
 failed to add a known improvement candidate to `[Backlog]`. MainAgent owns that
@@ -482,6 +578,11 @@ judgment before finalization: for a continuous self-improvement goal, it must
 run a final improvement-candidate sweep and either create the next-cycle
 Backlog item or explicitly record why each remaining candidate is rejected,
 blocked, deferred, out-of-scope, or needs user input.
+
+tmux delivery is also a liveness contract. Pasting text into a target Codex TUI
+pane is not delivery. The concrete send/capture/retry procedure belongs in the
+tmux Skills, not in this SPEC. The SPEC-level invariant is that Agents must not
+silently treat unconfirmed communication as delivered.
 
 ### ProfessionalAgent Re-kick Conditions
 
@@ -573,6 +674,13 @@ Documents isolated Codex CLI launch guidance:
 - `--add-dir` target project access;
 - no `codex exec` ProfessionalAgents.
 - layer `INSTRUCTIONS.md` as specialist perspective, not behavior.
+- ProfessionalAgent protocol layers resolve from
+  `AGENT_ORCHESTRA_REPO_ROOT/layers`, never from the target project's
+  `layers/` tree unless explicitly requested as experimental project-local
+  instructions.
+- launch material preserves `AGENT_ORCHESTRA_REPO_ROOT` in both `env.json` and
+  `env.sh` so installed Nix `codex-o` can prepare later ProfessionalAgents from
+  the same protocol source.
 
 ### tmux Common Skill
 
@@ -640,6 +748,25 @@ All code files should stay focused and responsibility-limited. The soft target
 is 100 lines per file; the hard limit is 300 lines per file. Split
 responsibilities before exceeding the hard limit instead of growing broad files.
 
+## Release Evidence And SPEC Traceability
+
+AgentOrchestra changes should leave release evidence that maps each change unit
+back to this SPEC and to executable verification. The minimum evidence record
+for a non-trivial change is:
+
+- SPEC clause or section affected;
+- owner_dri and affected scope;
+- reviewers and peer consultation disposition when applicable;
+- required checks run, skipped, or deferred with reason;
+- candidate-ledger disposition for residual improvements;
+- blocking objections and resolution evidence.
+
+The shared task file exposes deterministic finalization blockers: non-`done`
+status, open work in `[Backlog]`, `[InProgress]`, or `[InReview]`, and
+unresolved `[Candidates]` entries. Final release evidence should report that
+blocker list as empty, or explicitly record why a blocker is deferred,
+blocked, out-of-scope, or needs user input.
+
 ## Completion Criteria
 
 The minimal runtime is acceptable when tests and E2E evidence show:
@@ -648,13 +775,24 @@ The minimal runtime is acceptable when tests and E2E evidence show:
   `AGENTS.md`, not by incidental root files or target root `AGENTS.md`;
 - MainAgent starts from isolated instructions;
 - ProfessionalAgent starts from isolated `AGENTS.md` behavior plus
-  layer-specific perspective;
+  selected layer perspective;
 - `layers/**` remains free of Agent behavior contracts;
 - MainAgent can create a ProfessionalAgent tmux pane;
-- MainAgent can send tasks and follow-ups through tmux;
-- ProfessionalAgents can send messages to MainAgent or peer panes;
+- MainAgent can send initial tasks, follow-ups, and review requests through
+  Skill-defined tmux delivery procedures without false-accepting queued
+  composer text;
+- ProfessionalAgents can send messages to MainAgent or peer panes through the
+  same Skill-defined delivery procedures and record consultation evidence;
 - Stop Hook re-kicks MainAgent while open work remains;
-- Stop Hook does not re-kick MainAgent after `status=done` with no open work;
+- Stop Hook does not re-kick MainAgent after `status=done`, no open work, and
+  completed `[Candidates]` dispositions;
 - Stop Hook re-kicks a ProfessionalAgent only when its own state is active;
 - quiet ProfessionalAgent states are not re-kicked;
+- accepted ProfessionalAgents are marked `retired`, sent `/exit`, and have pane
+  cleanup verified before MainAgent reports completion;
+- user-requested MainAgent self-exit uses the tmux Main Skill self-exit
+  procedure and reports explicit failure if it cannot submit `/exit`;
+- verification uses `unittest`, direct Python `py_compile`,
+  `git diff --check`, and path-form Nix checks when Git-backed generated-copy
+  visibility would otherwise hide untracked fixture files;
 - runtime code remains small, mechanical, and responsibility-limited.

@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent_orchestra_minimal.launch_material import prepare_launch_material
+from agent_orchestra_minimal.tmux_delivery import normalize_submit_key
 
 
 @dataclass(frozen=True)
@@ -34,8 +35,16 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
         return ProbeResult(False, f"{codex_binary} is not available on PATH")
 
     session = f"agent-orchestra-tui-probe-{os.getpid()}"
-    key = (submit_key or os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", "")).strip() or "C-m"
-    with tempfile.TemporaryDirectory(prefix="agent-orchestra-tui-probe-", dir=_probe_tmp_dir()) as tmpdir:
+    try:
+        key = normalize_submit_key(
+            submit_key
+            if submit_key is not None
+            else os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", "")
+        )
+    except ValueError as exc:
+        return ProbeResult(False, str(exc))
+    tmp_parent = Path("/private/tmp") if Path("/private/tmp").is_dir() else Path(tempfile.gettempdir())
+    with tempfile.TemporaryDirectory(prefix="agent-orchestra-tui-probe-", dir=tmp_parent) as tmpdir:
         root = Path(tmpdir)
         home = root / "home"
         codex_home = root / "codex_home"
@@ -100,11 +109,6 @@ def _copy_auth(codex_home: Path) -> None:
             return
 
 
-def _probe_tmp_dir() -> str | None:
-    private_tmp = Path("/private/tmp")
-    return str(private_tmp) if private_tmp.is_dir() else None
-
-
 def _codex_pane(session: str) -> str | None:
     result = _run(["tmux", "list-panes", "-t", session, "-F", "#{pane_id} #{pane_current_command} #{pane_active}"])
     rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
@@ -134,6 +138,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--agent-id", required=True)
     parser.add_argument("--agent-kind", default="ProfessionalAgent")
     parser.add_argument("--lead-layer")
+    parser.add_argument(
+        "--protocol-layer",
+        help="layer directory name or numeric prefix under AGENT_ORCHESTRA_REPO_ROOT/layers",
+    )
     parser.add_argument("--instruction-source")
     parser.add_argument("--instruction-text")
     parser.add_argument("--tmux-pane")
@@ -150,8 +158,17 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--run-dir or AGENT_ORCHESTRA_RUN_DIR is required")
     if not target_project:
         parser.error("--target-project or AGENT_ORCHESTRA_TARGET_PROJECT is required")
-    if not args.instruction_source and not args.instruction_text:
-        parser.error("--instruction-source or --instruction-text is required")
+
+    instruction_source = args.instruction_source
+    if not instruction_source and args.protocol_layer:
+        instruction_source = str(resolve_protocol_layer_instruction(args.protocol_layer))
+    if not instruction_source and not args.instruction_text and args.lead_layer:
+        instruction_source = str(resolve_protocol_layer_instruction(args.lead_layer))
+    if not instruction_source and not args.instruction_text:
+        parser.error("--instruction-source, --instruction-text, --protocol-layer, or resolvable --lead-layer is required")
+    lead_layer = args.lead_layer
+    if instruction_source and not lead_layer:
+        lead_layer = Path(instruction_source).expanduser().resolve().parent.name
 
     material = prepare_launch_material(
         run_dir=run_dir,
@@ -159,8 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         agent_kind=args.agent_kind,
         target_project=target_project,
         instruction_text=args.instruction_text,
-        instruction_source=args.instruction_source,
-        lead_layer=args.lead_layer,
+        instruction_source=instruction_source,
+        lead_layer=lead_layer,
         task_file=os.environ.get("AGENT_ORCHESTRA_TASK_FILE"),
         initial_state=args.initial_state,
         tmux_pane=args.tmux_pane,
@@ -174,6 +191,41 @@ def main(argv: list[str] | None = None) -> int:
     print(f"workspace={material.workspace}")
     print(f"codex_home={material.codex_home}")
     return 0
+
+
+def resolve_protocol_layer_instruction(selector: str) -> Path:
+    normalized = selector.strip()
+    if not normalized:
+        raise FileNotFoundError("empty protocol layer selector")
+    layers_dir = protocol_root() / "layers"
+    if not layers_dir.is_dir():
+        raise FileNotFoundError(f"protocol layers directory was not found: {layers_dir}")
+
+    exact = layers_dir / normalized / "INSTRUCTIONS.md"
+    if exact.is_file():
+        return exact
+
+    prefix_matches: list[Path] = []
+    if normalized.isdigit():
+        prefixes = {normalized, normalized.zfill(2)}
+        prefix_matches = [
+            path / "INSTRUCTIONS.md"
+            for path in sorted(layers_dir.iterdir())
+            if path.is_dir() and any(path.name.startswith(f"{prefix}_") for prefix in prefixes)
+            and (path / "INSTRUCTIONS.md").is_file()
+        ]
+    if len(prefix_matches) == 1:
+        return prefix_matches[0]
+    if len(prefix_matches) > 1:
+        raise FileNotFoundError(f"protocol layer selector {selector!r} matched multiple layers")
+
+    raise FileNotFoundError(f"protocol layer INSTRUCTIONS.md was not found for selector {selector!r}")
+
+
+def protocol_root() -> Path:
+    if root := os.environ.get("AGENT_ORCHESTRA_REPO_ROOT"):
+        return Path(root).expanduser().resolve()
+    return Path(__file__).resolve().parents[2]
 
 
 if __name__ == "__main__":

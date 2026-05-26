@@ -40,6 +40,22 @@ class ProbeCleanupTests(unittest.TestCase):
             ],
         )
 
+    def test_tui_probe_rejects_invalid_submit_key_without_sending_keys(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="%1 node 1\n", stderr="")
+
+        with patch("shutil.which", return_value="/bin/tool"), \
+             patch("agent_orchestra_minimal.prepare_agent_launch._run", side_effect=fake_run), \
+             patch.dict("os.environ", {"AGENT_ORCHESTRA_TUI_SUBMIT_KEY": "C-m Space"}, clear=False):
+            result = run_probe(codex_binary="codex")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.message, "submit_key must be a single tmux key token")
+        self.assertFalse(any(args[:2] == ["tmux", "send-keys"] for args in calls))
+
     def test_tui_probe_removes_temp_root_after_start_failure(self) -> None:
         roots: list[Path] = []
 

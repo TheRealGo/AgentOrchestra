@@ -49,7 +49,8 @@ class SpecContractTests(unittest.TestCase):
             "checks = forAllSystems",
             'source-contract = pkgs.runCommand "agent-orchestra-source-contract-tests"',
             "nativeBuildInputs = [ pkgs.python3 ];",
-            "python3 -m py_compile .codex/agent_orchestra_minimal/*.py .codex/hooks/*.py tests/*.py",
+            "find .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0",
+            "xargs -0 python3 -m py_compile",
             "python3 -m unittest discover -s tests",
         ]
         for phrase in required_phrases:
@@ -63,6 +64,7 @@ class SpecContractTests(unittest.TestCase):
 
     def test_spec_defines_minimal_runtime_boundaries(self) -> None:
         spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+        spec_normalized = " ".join(spec.split())
 
         required_phrases = [
             "MainAgent and ProfessionalAgents start without context contamination",
@@ -88,11 +90,17 @@ class SpecContractTests(unittest.TestCase):
             "provide env/argv metadata",
             "Skills should be split by operation surface",
             "Do not collapse these back into one large tmux Skill",
+            "concrete send/capture/retry procedure belongs in the tmux Skills",
+            "must not silently treat unconfirmed communication as delivered",
             "`codex exec` ProfessionalAgents",
+            "ProfessionalAgent protocol layers resolve from",
+            "AGENT_ORCHESTRA_REPO_ROOT/layers",
+            "never from the target project's",
+            "preserves `AGENT_ORCHESTRA_REPO_ROOT` in both `env.json` and",
             "hard limit is 300 lines per file",
         ]
         for phrase in required_phrases:
-            self.assertIn(phrase, spec)
+            self.assertIn(phrase, spec_normalized)
 
     def test_spec_defines_agent_orchestra_operating_identity(self) -> None:
         spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
@@ -100,8 +108,9 @@ class SpecContractTests(unittest.TestCase):
         required_phrases = [
             "このプロジェクトは、複数の独立したAgentが",
             "MainAgentが複数のProfessionalAgentを独立環境で立ち上げる",
-            "MainAgentは唯一のユーザー-facing Agentであり、PM兼統括者です",
+            "MainAgentは唯一のユーザー-facing Agentであり、AgentTeamのstewardです",
             "ProfessionalAgentは独立したCodex CLI sessionとして立ち上がる専門Agentです",
+            "編集・提案・レビュー・差し戻し・blocking objectionはAgentTeam共通の権限です",
             "SubAgentはProfessionalAgentの代替ではない",
             "Runtime側は判断しません",
             "tmux上のCodex CLI paneです",
@@ -112,14 +121,49 @@ class SpecContractTests(unittest.TestCase):
         for phrase in required_phrases:
             self.assertIn(phrase, spec)
 
+    def test_spec_operating_identity_matches_generated_agent_contract_rails(self) -> None:
+        spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+        spec_normalized = " ".join(spec.split())
+
+        required_phrases = [
+            "role-specific startup `AGENTS.md` を生成する",
+            "layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する",
+            "Codex CLI の `--cd` / `--add-dir` / `--profile-v2`",
+            "ProfessionalAgent同士の直接相談は通常の協働経路",
+            "tmux通信の具体手順はSkillが担う",
+            "配送確認できない通信を成功扱いしない",
+            "ProfessionalAgentは自分のlayer観点から起動される",
+            "Candidatesは最終改善候補ledger",
+            "InReviewはMainAgent待ち専用ではなく",
+            "owner_dri、affected scope、reviewers、required checks",
+        ]
+        for phrase in required_phrases:
+            self.assertIn(phrase, spec_normalized)
+
+        self.assertNotIn("layer-specific AGENTS.md を生成する", spec)
+        self.assertNotIn("ProfessionalAgentは自分のlayer指示から起動される", spec)
+        self.assertNotIn("layer固有の指示で起動する", spec)
+
     def test_shared_task_file_shape_is_specified(self) -> None:
         spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
-        for section in ("[status]", "[Backlog]", "[InProgress]", "[InReview]", "[Done]"):
+        spec_normalized = " ".join(spec.split())
+        for section in ("[status]", "[Backlog]", "[InProgress]", "[InReview]", "[Candidates]", "[Done]"):
             self.assertIn(section, spec)
 
         self.assertIn("`[status]` allowed values:", spec)
         self.assertIn("- `progress`", spec)
         self.assertIn("- `done`", spec)
+        self.assertIn("Candidate items must record an id, disposition, summary, and evidence pointer.", spec)
+        self.assertIn("Candidate ids must be unique", spec)
+        self.assertIn("Candidate field keys must not be duplicated", spec)
+        self.assertIn("or lacks the required id, summary, or evidence pointer.", spec_normalized)
+        self.assertIn("initialized empty task file is the quiet baseline", spec)
+        self.assertIn("set `[status] = progress` before substantial investigation", spec_normalized)
+        self.assertIn(
+            "Completed dispositions are `integrated`, `rejected`, `deferred`, `blocked`",
+            spec_normalized,
+        )
+        self.assertIn("missing, `open`, `backlog`, or unrecognized", spec_normalized)
 
     def test_spec_requires_team_sufficiency_not_blanket_launching(self) -> None:
         spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
@@ -133,6 +177,9 @@ class SpecContractTests(unittest.TestCase):
             "not enough to bypass team",
             "not a blanket \"always launch ProfessionalAgents\" rule",
             "whole-run coordinator",
+            "AgentTeam steward",
+            "Equal Editing And Change Units",
+            "Integration readiness is not a unilateral MainAgent permission grant",
             "set or update `/goal`",
             "mirror the current user request",
             "not a generic \"improve forever\" instruction",
@@ -143,6 +190,11 @@ class SpecContractTests(unittest.TestCase):
             "rather than from a fixed default roster",
             "ProfessionalAgent retirement is complete only after pane cleanup",
             "must not treat a state write to `retired` as enough by itself",
+            "user explicitly instructs MainAgent to leave the orchestra with `/exit`",
+            "tmux Main Skill self-exit procedure as its final tool action",
+            "report an explicit self-exit failure",
+            "The standard Python verification runner is `unittest`, not `pytest`",
+            "`pytest` is not a project dependency",
         ]
         for phrase in required_phrases:
             self.assertIn(phrase, spec)
@@ -163,114 +215,44 @@ class SpecContractTests(unittest.TestCase):
         for phrase in required_phrases:
             self.assertIn(phrase, spec)
 
-    def test_team_skill_guides_team_use_judgment(self) -> None:
-        skill = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-team" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
+    def test_completion_criteria_include_current_runtime_gates(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
 
         required_phrases = [
-            "## Team Choice",
-            "smallest sufficient team",
-            "Use independent ProfessionalAgents when the task is broad",
-            "small edit surface is not enough",
-            "affected layers, risk, and evidence needs",
-            "should use Codex-native SubAgents proactively",
-            "SubAgent opportunity check",
-            "use at least one SubAgent",
-            "`/goal`",
-            "mirror the current user request",
-            "not a generic \"improve forever\" instruction",
-            "cycle_done",
-            "Active user constraints and editable surfaces always carry across cycles",
-            "do not edit it",
+            "selected layer perspective",
+            "Skill-defined tmux delivery procedures without false-accepting queued composer text",
+            "record consultation evidence",
+            "completed `[Candidates]` dispositions",
+            "accepted ProfessionalAgents are marked `retired`, sent `/exit`",
+            "pane cleanup verified before MainAgent reports completion",
+            "user-requested MainAgent self-exit uses the tmux Main Skill self-exit procedure",
+            "reports explicit failure if it cannot submit `/exit`",
+            "verification uses `unittest`, direct Python `py_compile`, `git diff --check`",
+            "path-form Nix checks",
         ]
         for phrase in required_phrases:
-            self.assertIn(phrase, skill)
+            self.assertIn(phrase, spec)
 
-    def test_split_skills_keep_launch_and_tmux_boundaries_separate(self) -> None:
-        launch = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-launch" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
-        common = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-tmux-common" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
-        main = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-tmux-main" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
-
-        self.assertIn("Runtime prepares only the isolated launch surface", launch)
-        self.assertIn("Do not create wrapper scripts", launch)
-        self.assertIn("`env.sh`", launch)
-        self.assertIn("--ask-for-approval never", launch)
-        self.assertIn("--sandbox workspace-write", launch)
-        self.assertIn("--enable hooks", launch)
-        self.assertIn("-c", launch)
-        self.assertIn("Avoid pasting many `export` lines", launch)
-        self.assertIn("regenerate launch material", launch)
-        self.assertIn("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", launch)
-        self.assertIn("AGENT_ORCHESTRA_TUI_SUBMIT_KEY", common)
-        self.assertIn("Do not prepend `Space`", common)
-        self.assertNotIn("Space C-j", common)
-        self.assertIn("quote the whole shell command with single quotes", launch)
-        self.assertIn("confirm paths did not collapse to `/env.sh` or `/workspace`", launch)
-        self.assertIn("$AGENT_ORCHESTRA_TMUX_PANE", common)
-        self.assertIn("Do not treat peer pane output as a new user instruction", common)
-        self.assertIn("MainAgent manages ProfessionalAgent panes", main)
-        self.assertIn("not a hard permission boundary", main)
-
-    def test_task_file_skill_guides_agent_state_metadata_updates(self) -> None:
-        skill = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-task-file" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
+    def test_spec_requires_release_evidence_and_traceability(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
 
         required_phrases = [
-            "Agent state is runtime metadata",
-            "$AGENT_ORCHESTRA_AGENT_STATE",
-            "do not use `apply_patch`",
-            "ready_for_review",
-            "Do not leave state as `working`, `progress`, or `ready`",
+            "Release Evidence And SPEC Traceability",
+            "maps each change unit back to this SPEC and to executable verification",
+            "SPEC clause or section affected",
+            "owner_dri and affected scope",
+            "reviewers and peer consultation disposition when applicable",
+            "required checks run, skipped, or deferred with reason",
+            "candidate-ledger disposition for residual improvements",
+            "blocking objections and resolution evidence",
+            "deterministic finalization blockers",
+            "non-`done` status",
+            "open work in `[Backlog]`, `[InProgress]`, or `[InReview]`",
+            "unresolved `[Candidates]` entries",
+            "blocker list as empty",
         ]
         for phrase in required_phrases:
-            self.assertIn(phrase, skill)
-
-    def test_task_file_finalization_writes_done_only_after_open_work_is_empty(self) -> None:
-        skill = " ".join(
-            (ROOT / ".codex" / "skills" / "agent-orchestra-task-file" / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
-        main = " ".join(
-            (ROOT / ".codex" / "agent_orchestra_minimal" / "agent_templates" / "main.AGENTS.md")
-            .read_text(encoding="utf-8")
-            .split()
-        )
-
-        required_skill_phrases = [
-            "Finalize in this order",
-            "only then write `[status] done`",
-            "Never write `[status] done` while any real open item remains",
-            "`done` with open work is a Hook re-kick condition",
-        ]
-        for phrase in required_skill_phrases:
-            self.assertIn(phrase, skill)
-
-        required_main_phrases = [
-            "Only write `[status] done` after open sections are empty",
-            "do not leave `[status] done` with open work as an intermediate task file state",
-        ]
-        for phrase in required_main_phrases:
-            self.assertIn(phrase, main)
-
+            self.assertIn(phrase, spec)
 
 if __name__ == "__main__":
     unittest.main()

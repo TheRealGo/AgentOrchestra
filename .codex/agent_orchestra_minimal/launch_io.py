@@ -11,7 +11,10 @@ from .codex_config import codex_config
 
 RUNTIME_FILES = (
     "agent_state.py",
+    "candidate_ledger.py",
+    "cli.py",
     "codex_config.py",
+    "doctor.py",
     "launch_args.py",
     "launch_io.py",
     "launch_material.py",
@@ -19,7 +22,10 @@ RUNTIME_FILES = (
     "operating_identity.py",
     "prepare_agent_launch.py",
     "task_file.py",
+    "tmux_targets.py",
+    "tmux_delivery.py",
     "rekick.py",
+    "tmux_send.py",
     "tmux_wake.py",
 )
 RUNTIME_DIRS = ("agent_templates",)
@@ -82,6 +88,13 @@ def ensure_target_link(link_path: Path, target: Path) -> None:
         raise FileExistsError(f"target_project path exists and is not a symlink: {link_path}")
     link_path.parent.mkdir(parents=True, exist_ok=True)
     os.symlink(target, link_path, target_is_directory=True)
+
+
+def remove_isolated_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
 
 
 def write_json(path: Path, data: object) -> None:

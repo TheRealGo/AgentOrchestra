@@ -5,4 +5,8 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .codex/installation_id
+.codex/tmp/
 .codex/skills/.system/
+E2E.md
+AgentOrchestra/
+Handoff.md
