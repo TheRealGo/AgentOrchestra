@@ -123,6 +123,21 @@ class CandidateLedgerContractTests(unittest.TestCase):
                 self.assertTrue(task_file.is_finalized)
                 self.assertEqual(task_file.finalization_blockers, [])
 
+    def test_candidate_ledger_ignores_comment_and_blank_entries(self) -> None:
+        task_file = SharedTaskFile.parse(
+            TASK_FILE.format(
+                candidate=(
+                    "# reviewed in handoff\n"
+                    "; no remaining runtime candidate\n"
+                    "\n"
+                    "candidate-1: disposition=rejected; summary=no code change; evidence=review"
+                )
+            )
+        )
+
+        self.assertTrue(task_file.is_finalized)
+        self.assertEqual(task_file.finalization_blockers, [])
+
     def test_finalization_blockers_name_status_open_work_and_candidates(self) -> None:
         text = TASK_FILE.format(
             candidate="candidate-1: disposition=open; summary=missing release note; evidence=Handoff.md"
