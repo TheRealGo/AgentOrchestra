@@ -95,7 +95,7 @@ Runtime側の責務は最小限の機械処理です。
 - role-specific startup `AGENTS.md` を生成する
 - layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する
 - Skill / Hook を渡す
-- Codex CLI の `--cd` / `--add-dir` / `--profile-v2` で起動できる最小のenv/command metadataを渡す
+- Codex CLI の `--cd` / `--add-dir` / `--profile` で起動できる最小のenv/command metadataを渡す
 - Stop Hookで止まったAgentを検知する
 - task/stateを見て必要なら固定wakeを送る
 

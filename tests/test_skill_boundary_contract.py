@@ -43,6 +43,8 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("--polls-per-attempt 60", common)
         self.assertIn("slow Codex TUI startup", common)
         self.assertIn("peer still finishing its current turn", common)
+        self.assertIn("before pasting", common)
+        self.assertIn("without interrupting the active conversation", common)
         self.assertIn("not supervision", common)
         self.assertIn("returns non-zero if the target Codex TUI does not accept the message", common_normalized)
         self.assertIn("If the helper exits non-zero, do not continue as if the message was delivered", common)
@@ -135,6 +137,20 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "Use the bounded detached Python self-exit procedure",
             "documented by the `agent-orchestra-tmux-main` Skill as the final tool action",
             "report the explicit self-exit failure",
+        ):
+            self.assertIn(phrase, normalized)
+
+    def test_professional_template_keeps_ready_work_in_review_until_accepted(self) -> None:
+        template = (
+            CODEX / "agent_orchestra_minimal" / "agent_templates" / "professional.AGENTS.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(template.split())
+
+        for phrase in (
+            "set your Agent state to `ready_for_review` before or as you report the result",
+            "scoped task in the shared task file under `[InReview]`",
+            "to `[Done]` only when the accepted disposition is known",
+            "do not use this task update to decide whole-run completion",
         ):
             self.assertIn(phrase, normalized)
 

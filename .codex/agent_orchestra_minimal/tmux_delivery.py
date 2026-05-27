@@ -7,6 +7,15 @@ from dataclasses import dataclass
 from os import getpid
 from time import sleep
 
+from .tmux_probe import (
+    line_has_agent_message_prompt,
+    last_probe_index,
+    last_prompt_marker_index,
+    line_has_prompt_marker,
+    line_has_start_marker,
+    looks_queued,
+    looks_started,
+)
 from .tmux_targets import required_tmux_pane
 
 
@@ -15,9 +24,6 @@ TMUX_KEY_TOKEN = re.compile(r"^[A-Za-z0-9_.:+-]+$")
 MAX_RETRIES = 10
 MAX_POLL_INTERVAL_SECONDS = 2.0
 MAX_POLLS_PER_ATTEMPT = 60
-MESSAGE_PROBE_CHARS = 120
-MIN_MESSAGE_PROBE_CHARS = 56
-MAX_WRAPPED_PROBE_LINES = 24
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 
@@ -68,9 +74,17 @@ def send_buffered_text(
         baseline_probe_index = -1
         baseline_prompt_index = -1
         if require_fresh_capture:
-            baseline_lines = _capture(run, pane_target).splitlines()
-            baseline_probe_index = _last_probe_index(baseline_lines, text)
-            baseline_prompt_index = _last_prompt_marker_index(baseline_lines)
+            baseline_capture = _wait_for_ready_input(
+                run,
+                pane_target,
+                poll_interval_seconds=poll_interval_seconds,
+                polls=polls_per_attempt,
+            )
+            if not _pane_is_ready_for_input(baseline_capture):
+                return DeliveryResult(False, 0, _tail(baseline_capture))
+            baseline_lines = baseline_capture.splitlines()
+            baseline_probe_index = last_probe_index(baseline_lines, text)
+            baseline_prompt_index = last_prompt_marker_index(baseline_lines)
         run(["tmux", "paste-buffer", "-t", pane_target, "-b", buffer_name], check=True)
         attempts = 0
         capture = ""
@@ -79,7 +93,7 @@ def send_buffered_text(
             run(["tmux", "send-keys", "-t", pane_target, submit_key], check=True)
             for poll_index in range(polls_per_attempt):
                 capture = _capture(run, pane_target)
-                if _last_probe_index(capture.splitlines(), text) > baseline_probe_index:
+                if last_probe_index(capture.splitlines(), text) > baseline_probe_index:
                     fresh_probe_was_seen = True
                 state = _delivery_state(
                     capture,
@@ -115,6 +129,35 @@ def _capture(run: Runner, pane_target: str) -> str:
     return result.stdout or ""
 
 
+def _wait_for_ready_input(
+    run: Runner,
+    pane_target: str,
+    *,
+    poll_interval_seconds: float,
+    polls: int,
+) -> str:
+    capture = ""
+    for poll_index in range(polls):
+        capture = _capture(run, pane_target)
+        if _pane_is_ready_for_input(capture):
+            return capture
+        if poll_interval_seconds > 0 and poll_index < polls - 1:
+            sleep(poll_interval_seconds)
+    return capture
+
+
+def _pane_is_ready_for_input(capture: str) -> bool:
+    lines = capture.splitlines()
+    if (prompt_index := last_prompt_marker_index(lines)) == -1:
+        return False
+    if line_has_agent_message_prompt(lines[prompt_index]):
+        return False
+    if line_has_prompt_marker(lines[prompt_index]) and _has_active_marker(lines[:prompt_index]):
+        return False
+    tail = "\n".join(lines[prompt_index + 1 :])
+    return not looks_queued(tail) and not looks_started(tail)
+
+
 def _delivery_state(
     capture: str,
     text: str,
@@ -124,130 +167,45 @@ def _delivery_state(
     fresh_probe_was_seen: bool = False,
 ) -> str:
     lines = capture.splitlines()
-    probe_index = _last_probe_index(lines, text)
+    probe_index = last_probe_index(lines, text)
     if probe_index != -1:
         if probe_index <= baseline_probe_index:
             return "uncertain"
         tail = "\n".join(lines[probe_index + 1 :])
-        if _looks_queued(tail):
+        if looks_queued(tail):
             return "queued"
-        if _looks_started(tail):
+        if looks_started(tail):
             return "started"
         return "queued"
-    prompt_index = _last_prompt_marker_index(lines)
+    prompt_index = last_prompt_marker_index(lines)
     if prompt_index != -1:
         tail = "\n".join(lines[prompt_index + 1 :])
-        if _looks_queued(tail):
+        if looks_queued(tail):
             return "queued"
-        if fresh_probe_was_seen and not _looks_queued(capture):
+        if fresh_probe_was_seen and not looks_queued(capture):
             return "started"
         if (
             baseline_prompt_index != -1
             and prompt_index > baseline_prompt_index
-            and _looks_started(tail)
+            and looks_started(tail)
         ):
             return "started"
         return "uncertain"
-    if _looks_queued(capture):
+    if looks_queued(capture):
         return "queued"
     return "uncertain"
 
 
-def _last_probe_index(lines: list[str], text: str) -> int:
-    probes = _message_probes(text)
-    if not probes:
-        return -1
-    for index in range(len(lines) - 1, -1, -1):
-        stripped = _normalized_wrapped_line_window(lines, index)
-        if any(_probe_matches(probe, stripped) for probe in probes):
-            return _wrapped_line_window_end(lines, index)
-    return -1
-
-
-def _normalized_wrapped_line_window(lines: list[str], start: int) -> str:
-    window = [lines[start]]
-    for line in lines[start + 1 : start + MAX_WRAPPED_PROBE_LINES]:
-        if not line[:1].isspace() or _line_has_queue_marker(line):
-            break
-        window.append(line)
-    return " ".join(" ".join(line.strip().split()) for line in window)
-
-
-def _wrapped_line_window_end(lines: list[str], start: int) -> int:
-    end = start
-    for index, line in enumerate(lines[start + 1 : start + MAX_WRAPPED_PROBE_LINES], start + 1):
-        if not line[:1].isspace() or _line_has_queue_marker(line):
-            break
-        end = index
-    return end
-
-
-def _last_prompt_marker_index(lines: list[str]) -> int:
-    for index in range(len(lines) - 1, -1, -1):
-        if lines[index].lstrip().startswith(("›", ">")):
-            return index
-    return -1
-
-
-def _looks_started(capture: str) -> bool:
-    markers = (
-        "• ",
-        "Working",
-        "Pursuing goal",
-        "Explored",
-        "Ran ",
-        "Edited ",
-        "Waiting for",
-        "Finished waiting",
+def _has_active_marker(lines: list[str]) -> bool:
+    active_markers = ("• Working", "Working", "Pursuing goal")
+    done_markers = ("Done.", "Done", "FAILED", "Failed", "Cancelled", "─ Worked for")
+    return max(
+        (i for i, line in enumerate(lines) if line_has_start_marker(line, active_markers)),
+        default=-1,
+    ) > max(
+        (i for i, line in enumerate(lines) if line_has_start_marker(line, done_markers)),
+        default=-1,
     )
-    return any(_line_has_start_marker(line, markers) for line in capture.splitlines())
-
-
-def _line_has_start_marker(line: str, markers: tuple[str, ...]) -> bool:
-    if line[:1].isspace():
-        return False
-    return any(line.startswith(marker) for marker in markers)
-
-
-def _looks_queued(capture: str) -> bool:
-    return any(_line_has_queue_marker(line) for line in capture.splitlines())
-
-
-def _line_has_queue_marker(line: str) -> bool:
-    markers = (
-        "tab to queue message",
-        "Messages to be submitted after next tool call",
-    )
-    return any(marker in line for marker in markers)
-
-
-def _message_probes(text: str) -> tuple[str, ...]:
-    normalized = " ".join(text.strip().split())
-    first_line = " ".join(text.strip().splitlines()[0].split()) if text.strip() else ""
-    probes = []
-    for source in (normalized, first_line):
-        for length in (MESSAGE_PROBE_CHARS, 80, MIN_MESSAGE_PROBE_CHARS):
-            candidate = source[:length]
-            if candidate and (len(source) <= length or len(candidate) >= MIN_MESSAGE_PROBE_CHARS):
-                if candidate not in probes:
-                    probes.append(candidate)
-    return tuple(probes)
-
-
-def _probe_matches(probe: str, capture_window: str) -> bool:
-    if probe in capture_window:
-        return True
-    if not _has_non_ascii(probe):
-        return False
-    return _without_whitespace(probe) in _without_whitespace(capture_window)
-
-
-def _has_non_ascii(text: str) -> bool:
-    return any(ord(character) > 127 for character in text)
-
-
-def _without_whitespace(text: str) -> str:
-    return "".join(text.split())
 
 
 def _tail(text: str) -> str:

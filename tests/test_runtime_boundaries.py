@@ -98,7 +98,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
 
         self.assertIn("generated `workspace/AGENTS.md` is the Agent behavior surface", normalized)
         self.assertIn("Layer `INSTRUCTIONS.md` files are specialist perspectives only", normalized)
-        self.assertIn("--profile-v2 agent-orchestra", text)
+        self.assertIn("--profile agent-orchestra", text)
         self.assertIn("--ask-for-approval never", text)
         self.assertIn("--sandbox workspace-write", text)
         self.assertIn("--enable hooks", text)
@@ -138,8 +138,8 @@ class RuntimeBoundaryTests(unittest.TestCase):
         self.assertIn("not your superior", professional)
         self.assertIn("review peers, request changes", professional)
         self.assertIn("Treat peer consultation as review evidence", professional)
-        self.assertIn("move or record your scoped task in the shared task file as awaiting review", professional_normalized)
-        self.assertIn("Move your scoped task to `Done` only when the accepted disposition is known", professional_normalized)
+        self.assertIn("move or record your scoped task in the shared task file under `[InReview]`", professional_normalized)
+        self.assertIn("Move your scoped task to `[Done]` only when the accepted disposition is known", professional_normalized)
         self.assertIn("do not use this task update to decide whole-run completion", professional_normalized)
         for phrase in (
             "When you run or recommend verification",

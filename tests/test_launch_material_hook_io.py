@@ -22,7 +22,16 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
             calls = tmp / "tmux_calls.txt"
             fake_tmux = fake_bin / "tmux"
             fake_tmux.write_text(
-                "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' \"$*\" >> \"$AO_TMUX_CALLS\"\nexit 0\n",
+                "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' \"$*\" >> \"$AO_TMUX_CALLS\"\n"
+                "case \"$*\" in *capture-pane*)\n"
+                "  count=$(cat \"$AO_CAPTURE_COUNT\" 2>/dev/null || printf 0)\n"
+                "  count=$((count + 1))\n"
+                "  printf '%s\\n' \"$count\" > \"$AO_CAPTURE_COUNT\"\n"
+                "  if [ \"$count\" -eq 1 ]; then printf '› Implement {feature}\\n';\n"
+                "  else printf '› runtime_wake\\n\\n• Working\\n'; fi\n"
+                "  ;;\n"
+                "esac\n"
+                "exit 0\n",
                 encoding="utf-8",
             )
             fake_tmux.chmod(0o755)
@@ -40,6 +49,7 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
                 encoding="utf-8",
             )
             env = os.environ | material.env | {
+                "AO_CAPTURE_COUNT": str(tmp / "capture_count.txt"),
                 "AO_TMUX_CALLS": str(calls),
                 "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
             }
@@ -56,7 +66,7 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("main_status_progress_wake_delivery_unaccepted", result.stderr)
+            self.assertEqual(result.stderr, "")
             self.assertIn("send-keys -t %7 C-m", calls.read_text(encoding="utf-8"))
 
 

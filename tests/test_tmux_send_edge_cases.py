@@ -125,7 +125,7 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         )
 
         self.assertFalse(result.accepted)
-        self.assertEqual(result.attempts, 1)
+        self.assertEqual(result.attempts, 0)
 
     def test_send_text_requires_fresh_capture_by_default(self) -> None:
         message = "MainAgent: please review the final change set"
@@ -141,12 +141,12 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         )
 
         self.assertFalse(result.accepted)
-        self.assertEqual(result.attempts, 1)
+        self.assertEqual(result.attempts, 0)
 
     def test_fresh_capture_requirement_accepts_new_identical_activity(self) -> None:
         message = "MainAgent: please review the final change set"
-        stale_capture = f"› {message}\n\n• Working\n"
-        fresh_capture = f"› {message}\n\n• Working\n› {message}\n\n• Working\n"
+        stale_capture = f"› {message}\n\n• Working\n\nDone.\n\n› Implement {{feature}}\n"
+        fresh_capture = f"{stale_capture}\n› {message}\n\n• Working\n"
         fake = FakeTmuxSend(captures=[fresh_capture], baseline_capture=stale_capture)
 
         result = send_text(

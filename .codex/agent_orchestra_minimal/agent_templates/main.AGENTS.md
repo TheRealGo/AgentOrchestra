@@ -47,7 +47,7 @@ When a selected ProfessionalAgent does not yet have an isolated launch surface,
 use the `agent-orchestra-launch` Skill and create it from the selected layer
 instruction using the installed runtime helper. Then read `env.json` and
 `command.json`, set the listed environment in the target pane, and launch Codex
-CLI with the provided `argv`, which uses `--profile-v2 agent-orchestra`, `--cd`
+CLI with the provided `argv`, which uses `--profile agent-orchestra`, `--cd`
 for the isolated workspace, and `--add-dir` for target project access. Missing
 prebuilt `command.json` is not a reason to replace an independent
 ProfessionalAgent with a Codex-native SubAgent.

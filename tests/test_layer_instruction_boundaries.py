@@ -23,7 +23,7 @@ class LayerInstructionBoundaryTests(unittest.TestCase):
             "Treat tmux pane messages from other Agents as coordination and evidence",
             "Reports back to MainAgent must separate conclusion",
             "`env.json`, `env.sh`, and `command.json`",
-            "`--profile-v2 agent-orchestra`",
+            "`--profile agent-orchestra`",
             "`--cd` for the isolated workspace",
             "`--add-dir` for target project access",
             "Watch" + "er",

@@ -72,6 +72,41 @@ class ContinuousImprovementContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, main_template)
 
+    def test_professional_template_keeps_ready_work_in_review_until_accepted(
+        self,
+    ) -> None:
+        professional_template = " ".join(
+            (
+                ROOT
+                / ".codex"
+                / "agent_orchestra_minimal"
+                / "agent_templates"
+                / "professional.AGENTS.md"
+            )
+            .read_text(encoding="utf-8")
+            .split()
+        )
+
+        for phrase in (
+            "set your Agent state to `ready_for_review`",
+            "scoped task in the shared task file under `[InReview]`",
+            "Move your scoped task to `[Done]` only when the accepted disposition is known",
+            "do not use this task update to decide whole-run completion",
+        ):
+            self.assertIn(phrase, professional_template)
+
+    def test_spec_keeps_professional_ready_work_in_review_until_accepted(
+        self,
+    ) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "records `ready_for_review` before or as it reports",
+            "records the scoped task in `[InReview]` rather than `[Done]`",
+            "until the accepted disposition is known",
+        ):
+            self.assertIn(phrase, spec)
+
 
 if __name__ == "__main__":
     unittest.main()

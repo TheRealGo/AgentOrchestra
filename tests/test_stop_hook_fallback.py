@@ -24,7 +24,11 @@ class FakeTmux:
         stdout = ""
         if args[:2] == ["tmux", "capture-pane"]:
             self.capture_count += 1
-            stdout = "" if self.capture_count == 1 else "› runtime_wake\n\n• Working\n"
+            stdout = (
+                "› Implement {feature}\n"
+                if self.capture_count == 1
+                else "› runtime_wake\n\n• Working\n"
+            )
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
 
 

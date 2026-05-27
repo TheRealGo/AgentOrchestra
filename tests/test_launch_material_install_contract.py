@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import sys
 import tempfile
 import unittest
@@ -90,8 +91,13 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             argv = command["argv"]
             self.assertEqual(argv[0], "codex")
             self.assertEqual(command["env_shell_file"], str(material.env_shell_path))
-            self.assertIn("--profile-v2", argv)
+            self.assertIn("--profile", argv)
+            profile_index = argv.index("--profile")
+            self.assertEqual(argv[profile_index + 1], "agent-orchestra")
+            self.assertNotIn("--profile-v2", argv)
             self.assertIn("agent-orchestra", argv)
+            self.assertEqual(command["config_profile"], "agent-orchestra")
+            self.assertNotIn("config_profile_v2", command)
             self.assertIn("--ask-for-approval", argv)
             self.assertIn("never", argv)
             self.assertIn("--sandbox", argv)
@@ -109,6 +115,72 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             self.assertNotIn("shell_command", command)
             self.assertTrue(command["does_not_launch"])
             self.assertFalse((material.state_file.parent / "shell_command.txt").exists())
+
+    def test_launch_material_paths_are_private_to_the_current_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            material = prepare_launch_material(
+                run_dir=Path(tmpdir) / "run",
+                agent_id="pro-private",
+                agent_kind="ProfessionalAgent",
+                target_project=ROOT,
+                instruction_text="Security instruction.",
+            )
+
+            private_dirs = (
+                material.run_dir,
+                material.state_file.parent,
+                material.workspace,
+                material.home,
+                material.codex_home,
+                material.codex_home / "hooks",
+                material.codex_home / "skills",
+                material.codex_home / "agent_orchestra_minimal",
+            )
+            for path in private_dirs:
+                with self.subTest(path=path):
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700)
+
+            private_files = (
+                material.startup_agents,
+                material.task_file,
+                material.state_file,
+                material.env_path,
+                material.env_shell_path,
+                material.command_path,
+                material.config_path,
+            )
+            for path in private_files:
+                with self.subTest(path=path):
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
+            hook = material.codex_home / "hooks" / "agent_orchestra_stop_hook.py"
+            self.assertEqual(stat.S_IMODE(hook.stat().st_mode), 0o700)
+
+            skills_dir = material.codex_home / "skills"
+            for path in skills_dir.rglob("*"):
+                with self.subTest(path=path):
+                    expected_mode = 0o700 if path.is_dir() else 0o600
+                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), expected_mode)
+
+    def test_copied_auth_material_is_private_to_the_current_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            auth_source = root / "auth-source.json"
+            auth_source.write_text('{"token":"redacted"}\n', encoding="utf-8")
+            auth_source.chmod(0o644)
+
+            material = prepare_launch_material(
+                run_dir=root / "run",
+                agent_id="pro-auth-private",
+                agent_kind="ProfessionalAgent",
+                target_project=ROOT,
+                instruction_text="Auth privacy instruction.",
+                auth_source=auth_source,
+            )
+
+            auth_target = material.codex_home / "auth.json"
+            self.assertEqual(auth_target.read_text(encoding="utf-8"), '{"token":"redacted"}\n')
+            self.assertEqual(stat.S_IMODE(auth_target.stat().st_mode), 0o600)
 
 
 if __name__ == "__main__":

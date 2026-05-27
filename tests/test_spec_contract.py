@@ -81,7 +81,9 @@ class SpecContractTests(unittest.TestCase):
             "Runtime must not own",
             "`--cd` points at the isolated workspace",
             "`--add-dir` grants access to the target project",
-            "`--profile-v2 agent-orchestra` loads the minimal Hook/project-trust config",
+            "`--profile agent-orchestra` loads the minimal Hook/project-trust config",
+            "legacy or user-supplied profile flags such as `--profile-v2`",
+            "must be rejected from extra Codex args",
             "approval policy, sandbox mode, hooks enablement, and network access",
             "repository startup instruction surface is controlled by generated",
             "must not inject a synthetic first user prompt",
@@ -128,7 +130,7 @@ class SpecContractTests(unittest.TestCase):
         required_phrases = [
             "role-specific startup `AGENTS.md` を生成する",
             "layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する",
-            "Codex CLI の `--cd` / `--add-dir` / `--profile-v2`",
+            "Codex CLI の `--cd` / `--add-dir` / `--profile`",
             "ProfessionalAgent同士の直接相談は通常の協働経路",
             "tmux通信の具体手順はSkillが担う",
             "配送確認できない通信を成功扱いしない",
@@ -215,12 +217,31 @@ class SpecContractTests(unittest.TestCase):
         for phrase in required_phrases:
             self.assertIn(phrase, spec)
 
+    def test_spec_separates_release_skill_from_minimal_runtime_launch_contract(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        self.assertIn("project-local runtime Skills required for Agent operation", spec)
+        self.assertIn("### Release Skill", spec)
+        self.assertIn("repository-local operator guidance for explicit release tasks", spec)
+        self.assertIn("not part of the minimal runtime launch contract by default", spec)
+        self.assertIn("does not make runtime responsible for release judgment", spec)
+
+    def test_professional_agent_ready_for_review_keeps_task_in_review(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "records `ready_for_review` before or as it reports",
+            "records the scoped task in `[InReview]` rather than `[Done]`",
+            "until the accepted disposition is known",
+        ):
+            self.assertIn(phrase, spec)
+
     def test_completion_criteria_include_current_runtime_gates(self) -> None:
         spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
 
         required_phrases = [
             "selected layer perspective",
-            "Skill-defined tmux delivery procedures without false-accepting queued composer text",
+            "Skill-defined tmux delivery procedures without false-accepting queued composer text or interrupting a peer pane that is still working",
             "record consultation evidence",
             "completed `[Candidates]` dispositions",
             "accepted ProfessionalAgents are marked `retired`, sent `/exit`",

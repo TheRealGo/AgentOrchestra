@@ -1,6 +1,6 @@
 ---
 name: agent-orchestra-launch
-description: Use when preparing or launching an isolated agent-orchestra Codex CLI session, including clean HOME/CODEX_HOME, generated AGENTS.md, env.json, command.json, --profile-v2 agent-orchestra, --cd, --add-dir, and avoiding codex exec for ProfessionalAgents.
+description: Use when preparing or launching an isolated agent-orchestra Codex CLI session, including clean HOME/CODEX_HOME, generated AGENTS.md, env.json, command.json, --profile agent-orchestra, --cd, --add-dir, and avoiding codex exec for ProfessionalAgents.
 ---
 
 # agent-orchestra Launch Skill
@@ -39,7 +39,7 @@ trust and Stop Hook registration. Do not override Codex TUI keymaps from
 agent-orchestra; tmux delivery uses `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`.
 
 ```sh
-codex --profile-v2 agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks --cd "$ISOLATED_WORKSPACE" --add-dir "$TARGET_PROJECT"
+codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks --cd "$ISOLATED_WORKSPACE" --add-dir "$TARGET_PROJECT"
 ```
 
 `--cd` points at the isolated workspace with generated `AGENTS.md`.
@@ -87,7 +87,7 @@ Preferred pattern inside the target shell pane:
 ```sh
 AGENT_DIR=/path/from/helper/output
 . "$AGENT_DIR/env.sh"
-codex --profile-v2 agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks \
+codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks \
   -c 'sandbox_workspace_write.network_access=true' \
   --cd "$AGENT_DIR/workspace" --add-dir "$AGENT_ORCHESTRA_TARGET_PROJECT"
 ```
@@ -97,7 +97,7 @@ command with single quotes so `$AGENT_DIR` and `$AGENT_ORCHESTRA_TARGET_PROJECT`
 expand in the target pane, not in MainAgent's shell:
 
 ```sh
-tmux send-keys -t "$PANE" 'AGENT_DIR=/path/from/helper/output; . "$AGENT_DIR/env.sh"; codex --profile-v2 agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks -c sandbox_workspace_write.network_access=true --cd "$AGENT_DIR/workspace" --add-dir "$AGENT_ORCHESTRA_TARGET_PROJECT"' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
+tmux send-keys -t "$PANE" 'AGENT_DIR=/path/from/helper/output; . "$AGENT_DIR/env.sh"; codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks -c sandbox_workspace_write.network_access=true --cd "$AGENT_DIR/workspace" --add-dir "$AGENT_ORCHESTRA_TARGET_PROJECT"' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
 ```
 
 After launch, capture the pane and confirm paths did not collapse to `/env.sh`

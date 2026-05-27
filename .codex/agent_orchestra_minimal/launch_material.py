@@ -8,11 +8,10 @@ from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
 from .launch_args import codex_launch_argv, main_tmux_pane, optional_tmux_pane, validate_codex_args
-from .launch_io import ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, write_env_shell, write_json
+from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
 from .task_file import SharedTaskFile
 from .tmux_delivery import normalize_submit_key
-
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 @dataclass(frozen=True)
@@ -32,7 +31,6 @@ class LaunchMaterial:
     config_path: Path
     env: dict[str, str]
     command: dict[str, object]
-
 
 def prepare_launch_material(
     *,
@@ -68,18 +66,20 @@ def prepare_launch_material(
     config_path = codex_home / "agent-orchestra.config.toml"
     shared_task = Path(task_file).expanduser().resolve() if task_file else run_root / "tasks.ini"
     normalized_tmux_pane = optional_tmux_pane(tmux_pane)
-
     if _is_relative_to(workspace, target_root):
         raise ValueError(
             "isolated workspace must not be inside target_project; use a run_dir "
             "outside the target tree so target root AGENTS.md cannot become a startup instruction"
         )
     _reject_parent_agents_md(workspace)
-
+    for directory in (run_root, agent_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(PRIVATE_DIR_MODE)
     for isolated_dir in (workspace, home, codex_home):
         remove_isolated_path(isolated_dir)
-    for directory in (workspace, home, codex_home, agent_dir):
+    for directory in (workspace, home, codex_home):
         directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(PRIVATE_DIR_MODE)
     ensure_target_link(workspace / "target_project", target_root)
     SharedTaskFile.initialize(shared_task)
     AgentState(
@@ -88,7 +88,6 @@ def prepare_launch_material(
         state=_normalize_initial_state(initial_state),
         tmux_target=normalized_tmux_pane,
     ).write(state_file)
-
     startup_agents = workspace / "AGENTS.md"
     startup_agents.write_text(
         agents_md(
@@ -102,9 +101,9 @@ def prepare_launch_material(
         ),
         encoding="utf-8",
     )
+    startup_agents.chmod(PRIVATE_FILE_MODE)
     install_codex_material(codex_home, workspace, config_path)
     install_auth_material(codex_home, auth_source)
-
     submit_key = normalize_submit_key(os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY"))
     main_pane = main_tmux_pane(kind, normalized_tmux_pane)
     extra_codex_args = validate_codex_args(codex_args)
@@ -139,7 +138,7 @@ def prepare_launch_material(
         "cwd": str(workspace),
         "env_file": str(env_path),
         "env_shell_file": str(env_shell_path),
-        "config_profile_v2": "agent-orchestra",
+        "config_profile": "agent-orchestra",
         "does_not_launch": True,
     }
     write_json(env_path, env)

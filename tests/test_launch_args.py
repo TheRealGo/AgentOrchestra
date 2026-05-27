@@ -24,6 +24,8 @@ class LaunchArgsTests(unittest.TestCase):
                 ("--", "fix"),
                 ("fix", "launcher"),
                 ("exec", "echo ok"),
+                ("--profile", "agent-orchestra"),
+                ("--profile-v2", "agent-orchestra"),
                 ("--cd", str(ROOT)),
                 ("--add-dir", str(ROOT)),
                 ("--dangerously-bypass-hook-trust",),

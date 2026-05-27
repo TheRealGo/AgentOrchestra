@@ -13,6 +13,8 @@ from .tmux_targets import optional_tmux_pane, required_tmux_pane
 
 WAKE_PAYLOAD = "runtime_wake\nsource=hook\nuser_instruction=false"
 WAKE_BUFFER_PREFIX = "agent-orchestra-wake"
+WAKE_POLLS_PER_ATTEMPT = 60
+WAKE_POLL_INTERVAL_SECONDS = 0.05
 
 
 def send_wake(
@@ -33,7 +35,8 @@ def send_wake(
         submit_key=submit_key,
         runner=runner,
         max_retries=2,
-        polls_per_attempt=5,
+        poll_interval_seconds=WAKE_POLL_INTERVAL_SECONDS,
+        polls_per_attempt=WAKE_POLLS_PER_ATTEMPT,
         require_fresh_capture=True,
     )
 

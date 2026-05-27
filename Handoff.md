@@ -51,6 +51,171 @@
 
 ## Current Verification
 
+- Latest generated-copy checks after the 2026-05-27 launch profile and release-skill boundary pass:
+  - 2026-05-27 SPEC review found three launch/change-control gaps in the
+    generated-copy surface: launch metadata still referenced legacy
+    `--profile-v2`; installed launch material did not assert private
+    permissions for generated runtime/auth/config files; and the project-local
+    release Skill needed to be documented as explicit operator guidance rather
+    than part of the default minimal runtime launch contract.
+  - SPEC sections: Instruction Isolation; Skills; Development Policy; Release
+    Evidence And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent coordinated this pass with
+    `pro-runtime-16` and `pro-docs-25` ProfessionalAgent review panes for
+    runtime and documentation consistency.
+  - affected scope: `.codex/agent_orchestra_minimal/launch_args.py`,
+    `.codex/agent_orchestra_minimal/launch_io.py`,
+    `.codex/agent_orchestra_minimal/launch_material.py`,
+    `.codex/skills/agent-orchestra-launch/SKILL.md`,
+    `.github/workflows/agent-orchestra-source-contract.yml`, `SPEC.md`,
+    `tests/test_launch_args.py`, `tests/test_launch_material_install_contract.py`,
+    `tests/test_spec_contract.py`, and this handoff evidence.
+  - required checks: `python3 -m unittest discover -s tests` passed, 215 tests;
+    `python3 -m py_compile .codex/agent_orchestra_minimal/*.py
+    .codex/hooks/*.py` passed; `git diff --check` passed.
+  - candidate-ledger disposition: integrated for the `--profile` launch
+    contract, private launch-material permissions, release Skill boundary, and
+    path-form Nix source-contract workflow coverage.
+  - deterministic finalization blockers: none known for this change unit after
+    full unittest, runtime `py_compile`, whitespace verification, and live
+    ProfessionalAgent review.
+  - blocking objections: none known at this checkpoint.
+- Latest generated-copy checks after the 2026-05-27 tmux probe split:
+  - 2026-05-27 E2E found that `tmux_delivery.py` had reached 299 lines after
+    the busy-peer guards, making the SPEC hard file-size limit fragile. It also
+    exposed that a completed Codex TUI answer may end with a `Worked for`
+    footer rather than `Done.`, so the pre-send readiness guard could keep
+    treating an input prompt as busy.
+  - SPEC sections: Development Process And Quality Gates; tmux Communication;
+    Release Evidence And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned the split and readiness follow-up;
+    `pro-runtime-08` reviewed runtime/tmux behavior and `pro-qa-15` reviewed
+    candidate-ledger contract coverage.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `.codex/agent_orchestra_minimal/tmux_probe.py`,
+    `.codex/agent_orchestra_minimal/launch_io.py`,
+    `tests/test_tmux_send.py`, `tests/test_shared_task_file_candidates.py`,
+    and `Handoff.md`.
+  - required checks: targeted `python3 -m unittest tests.test_tmux_send`
+    passed, 15 tests; `python3 -m unittest discover -s tests` passed, 208
+    tests; targeted `PYTHONPYCACHEPREFIX=/private/tmp/agent-orchestra-pycache-
+    split python3 -m py_compile ...` passed for the split runtime and tests.
+  - candidate-ledger disposition: integrated for the tmux probe split,
+    completed-answer footer readiness guard, existing agent-message prompt
+    overwrite guard, and candidate-ledger field coverage.
+  - deterministic finalization blockers: final E2E is required because this
+    cycle accepted additional runtime/test changes.
+  - follow-up during final E2E widened the existing agent-message prompt guard
+    to cover named/suffixed `MainAgent` and `ProfessionalAgent` composer
+    prompts such as `MainAgent reviewer:` and `ProfessionalAgent role -> peer:`;
+    targeted `python3 -m unittest tests.test_tmux_send` passed, 15 tests.
+  - follow-up zero-final E2E integrated the ProfessionalAgent
+    `ready_for_review` task-file contract: ProfessionalAgent work moves to or
+    stays in `[InReview]` until MainAgent accepts or rejects it, rather than
+    self-finalizing in `[Done]`; generated-copy full unittest passed, 212
+    tests, with SPEC/template/contract-test coverage.
+  - blocking objections: none after targeted verification.
+- Latest generated-copy checks after the 2026-05-27 README docs gate:
+  - 2026-05-27 QA/release-process review found that README contributor
+    verification policy changes were not part of the source-contract workflow
+    trigger or scoped whitespace release-evidence gate.
+  - SPEC sections: Release Evidence And SPEC Traceability; Completion
+    Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned the change-control gate patch;
+    `pro-runtime-08` consultation was attempted but not accepted while both
+    panes were busy, with no delivered blocking objection.
+  - affected scope: `.github/workflows/agent-orchestra-source-contract.yml`,
+    `.github/pull_request_template.md`, `tests/test_change_control_surface.py`,
+    and `Handoff.md`.
+  - required checks: generated-copy `python3 -m unittest
+    tests.test_change_control_surface` passed, 6 tests; generated-copy
+    `python3 -m unittest discover -s tests` passed, 204 tests; generated-copy
+    `PYTHONPYCACHEPREFIX=/private/tmp/agent-orchestra-pycache-qa15 python3 -m
+    py_compile tests/test_change_control_surface.py` passed; tracked-root
+    `python3 -m unittest tests.test_change_control_surface` passed, 6 tests;
+    tracked-root `PYTHONPYCACHEPREFIX=/private/tmp/
+    agent-orchestra-pycache-qa15-root python3 -m py_compile
+    tests/test_change_control_surface.py` passed; tracked-root `git diff
+    --check -- .github tests Handoff.md README.md README.ja.md SPEC.md`
+    passed.
+  - candidate-ledger disposition: integrated for the README contributor-doc
+    gate candidate; evidence: this handoff entry, `.github/workflows/
+    agent-orchestra-source-contract.yml`, `.github/pull_request_template.md`,
+    and `tests/test_change_control_surface.py`.
+  - deterministic finalization blockers: none known for this scoped QA gate;
+    live tmux consultation delivery remained congested and is recorded as
+    non-blocking peer-consultation evidence rather than a runtime defect in
+    this change unit.
+  - blocking objections: none delivered.
+- Latest generated-copy checks after the 2026-05-27 prompt-like output guard:
+  - 2026-05-27 MainAgent and ProfessionalAgent review found one additional
+    tmux liveness edge case: while a peer Codex TUI is still working, an
+    assistant output line beginning with ASCII `>` or Unicode `›` can resemble
+    a composer prompt and make pre-send readiness too permissive.
+  - SPEC sections: tmux Communication; Release Evidence And SPEC
+    Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned the focused tmux delivery patch;
+    `pro-runtime-08` reviewed runtime/tmux liveness and `pro-sre-22` reviewed
+    Stop Hook/finalization evidence.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `.codex/agent_orchestra_minimal/tmux_wake.py`,
+    `tests/test_tmux_send.py`, and `Handoff.md`.
+  - required checks: targeted `python3 -m unittest
+    tests.test_tmux_send.TmuxSendTests.test_send_text_does_not_treat_busy_ascii_quote_as_ready_prompt
+    tests.test_tmux_send.TmuxSendTests.test_send_text_does_not_treat_busy_unicode_quote_as_ready_prompt
+    tests.test_tmux_send.TmuxSendTests.test_send_text_waits_for_peer_to_return_to_ready_prompt_before_paste
+    tests.test_tmux_send.TmuxSendTests.test_send_text_does_not_paste_while_target_is_working`
+    passed, 4 tests; focused `python3 -m unittest
+    tests.test_stop_hook_delivery_failure tests.test_stop_hook_and_tmux
+    tests.test_tmux_send` passed, 28 tests; `python3 -m unittest discover -s
+    tests` passed, 204 tests; `find .codex/agent_orchestra_minimal
+    .codex/hooks tests -name '*.py' -print0 | xargs -0 python3 -m py_compile`
+    passed; whitespace check for touched files passed; `git diff --check --
+    AgentOrchestra` passed; `nix flake check --no-build path:$PWD` passed.
+  - candidate-ledger disposition: integrated for the busy prompt-like output
+    readiness candidate and bounded wake polling interval; evidence: this
+    handoff entry, `tests/test_tmux_send.py`,
+    `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `.codex/agent_orchestra_minimal/tmux_wake.py`, and review panes `%1396` /
+    `%1397`.
+  - deterministic finalization blockers: none known after full verification,
+    task-file finalization, and accepted ProfessionalAgent pane retirement.
+  - blocking objections: none after accepting the conservative readiness guard.
+- Latest generated-copy checks after the 2026-05-27 busy peer-send guard:
+  - 2026-05-27 E2E exposed that peer consultation could target a Codex TUI
+    pane while it was still working, leaving one ProfessionalAgent interrupted
+    and another state marked `working` after its TUI had returned to `zsh`.
+  - SPEC sections: tmux Communication; Release Evidence And SPEC
+    Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent accepted the runtime delivery guard as an
+    E2E blocker fix; the failed E2E runtime and QA/change-control panes
+    (`%1391` / `%1392`) supplied the review evidence.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `tests/tmux_send_helpers.py`, `tests/test_tmux_send.py`,
+    `tests/test_tmux_send_edge_cases.py`,
+    `tests/test_stop_hook_delivery_failure.py`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks: targeted `python3 -m unittest tests.test_tmux_send
+    tests.test_tmux_send_edge_cases tests.test_tmux_delivery_prompt_status
+    tests.test_stop_hook_delivery_failure` passed, 33 tests;
+    `PYTHONPYCACHEPREFIX=/private/tmp/agent-orchestra-pycache-busy-send
+    python3 -m py_compile .codex/agent_orchestra_minimal/tmux_delivery.py
+    .codex/agent_orchestra_minimal/tmux_send.py tests/test_tmux_send.py
+    tests/tmux_send_helpers.py` passed; `python3 -m unittest discover -s
+    tests` passed, 201 tests; `PYTHONPYCACHEPREFIX=/private/tmp/
+    agent-orchestra-pycache-busy-send-full python3 -m py_compile $(find
+    .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py')` passed;
+    `git diff --check -- .codex tests layers Handoff.md SPEC.md .github
+    .gitignore flake.nix flake.lock` passed; `nix flake check --no-build
+    path:$PWD` passed.
+  - candidate-ledger disposition: integrated for the busy peer-send
+    interruption candidate; evidence: failed E2E panes `%1388`, `%1391`, and
+    `%1392`, this handoff entry, and the tmux delivery regression tests.
+  - deterministic finalization blockers: follow-up E2E is required because the
+    failed E2E also showed an external `codex_apps` MCP startup timeout and did
+    not reach `/exit`.
+  - blocking objections: none after accepting the pre-send input-readiness
+    guard as the narrow runtime fix.
 - Latest generated-copy checks after the 2026-05-26 live AgentTeam review:
   - 2026-05-26 MainAgent launched independent runtime and documentation
     ProfessionalAgent panes (`%1332` / `%1333`) from isolated launch material,

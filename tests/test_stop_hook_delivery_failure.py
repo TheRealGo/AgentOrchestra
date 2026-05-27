@@ -29,6 +29,13 @@ class ComposerStuckTmux(FakeTmux):
 class FailingSendKeysTmux(FakeTmux):
     def __call__(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         self.calls.append((args, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
+        if args[:2] == ["tmux", "capture-pane"]:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="› Implement {feature}\n",
+                stderr="",
+            )
         if args[:2] == ["tmux", "send-keys"]:
             raise subprocess.CalledProcessError(returncode=1, cmd=args, stderr="pane not found")
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
@@ -45,7 +52,8 @@ class StopHookDeliveryFailureTests(unittest.TestCase):
             ),
         ) as env:
             fake = ComposerStuckTmux()
-            decision = run_stop_hook(env, runner=fake)
+            with patch("agent_orchestra_minimal.tmux_delivery.sleep", return_value=None):
+                decision = run_stop_hook(env, runner=fake)
 
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
@@ -65,7 +73,8 @@ class StopHookDeliveryFailureTests(unittest.TestCase):
             Path(env["AGENT_ORCHESTRA_AGENT_STATE"]).write_text("{not json", encoding="utf-8")
             env["AGENT_ORCHESTRA_MAIN_TMUX_PANE"] = "%main"
             fake = ComposerStuckTmux()
-            decision = run_stop_hook(env, runner=fake)
+            with patch("agent_orchestra_minimal.tmux_delivery.sleep", return_value=None):
+                decision = run_stop_hook(env, runner=fake)
 
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)

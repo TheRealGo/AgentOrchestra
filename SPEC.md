@@ -107,7 +107,7 @@ Runtime側の責務は最小限の機械処理です。
 - role-specific startup `AGENTS.md` を生成する
 - layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する
 - Skill / Hook を渡す
-- Codex CLI の `--cd` / `--add-dir` / `--profile-v2` で起動できる最小のenv/command metadataを渡す
+- Codex CLI の `--cd` / `--add-dir` / `--profile` で起動できる最小のenv/command metadataを渡す
 - Stop Hookで止まったAgentを検知する
 - task/stateを見て必要なら固定wakeを送る
 
@@ -349,7 +349,9 @@ instruction surface. It owns:
 
 ProfessionalAgents do not decide the full run completion state.
 When a ProfessionalAgent has completed its scoped assignment and is waiting for
-Team review, it records `ready_for_review` before or as it reports.
+Team review, it records `ready_for_review` before or as it reports and records
+the scoped task in `[InReview]` rather than `[Done]` until the accepted
+disposition is known.
 
 ### SubAgent
 
@@ -375,7 +377,7 @@ The runtime prepares a launch surface for each Agent before Codex starts:
 - generated startup `AGENTS.md` from repo-owned Agent behavior templates;
 - clean `HOME`;
 - clean `CODEX_HOME`;
-- project-local skills;
+- project-local runtime Skills required for Agent operation;
 - project-local hooks;
 - required environment variables;
 - target project access as data through Codex CLI `--add-dir`.
@@ -385,8 +387,10 @@ The Codex CLI launch itself should use first-class Codex options:
 - `--cd` points at the isolated workspace that contains the generated
   startup `AGENTS.md`;
 - `--add-dir` grants access to the target project as data/workspace material;
-- `--profile-v2 agent-orchestra` loads the minimal Hook/project-trust config
+- `--profile agent-orchestra` loads the minimal Hook/project-trust config
   from `CODEX_HOME`;
+- legacy or user-supplied profile flags such as `--profile-v2` are runtime
+  boundary overrides and must be rejected from extra Codex args;
 - approval policy, sandbox mode, hooks enablement, and network access are
   passed as first-class Codex options or `-c` overrides where possible;
 - `HOME` and `CODEX_HOME` are set per Agent.
@@ -668,7 +672,7 @@ Documents isolated Codex CLI launch guidance:
 - generated startup `AGENTS.md` from Agent behavior templates;
 - clean `HOME` / `CODEX_HOME`;
 - `env.json`, `env.sh`, and `command.json`;
-- `--profile-v2 agent-orchestra`;
+- `--profile agent-orchestra`;
 - `--ask-for-approval`, `--sandbox`, `--enable`, and `-c` config overrides;
 - `--cd` isolated workspace;
 - `--add-dir` target project access;
@@ -717,6 +721,14 @@ Documents safe shared task file updates:
 - set `[status] = progress`;
 - set `[status] = done` only when open work is empty.
 
+### Release Skill
+
+Documents the project-local AgentOrchestra release workflow from the private
+development repository to the public release mirror. It is repository-local
+operator guidance for explicit release tasks, not part of the minimal runtime
+launch contract by default. It does not make runtime responsible for release
+judgment, release approval, branch selection, or publishing.
+
 ### Skill Granularity
 
 Skills should be split by operation surface:
@@ -726,6 +738,8 @@ Skills should be split by operation surface:
 - common tmux communication;
 - MainAgent pane management;
 - task/state updates.
+- project-local release workflow evidence and commands when a release task
+  explicitly uses that Skill.
 
 Do not collapse these back into one large tmux Skill.
 
@@ -780,7 +794,7 @@ The minimal runtime is acceptable when tests and E2E evidence show:
 - MainAgent can create a ProfessionalAgent tmux pane;
 - MainAgent can send initial tasks, follow-ups, and review requests through
   Skill-defined tmux delivery procedures without false-accepting queued
-  composer text;
+  composer text or interrupting a peer pane that is still working;
 - ProfessionalAgents can send messages to MainAgent or peer panes through the
   same Skill-defined delivery procedures and record consultation evidence;
 - Stop Hook re-kicks MainAgent while open work remains;

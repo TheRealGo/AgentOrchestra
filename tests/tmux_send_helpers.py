@@ -4,7 +4,12 @@ import subprocess
 
 
 class FakeTmuxSend:
-    def __init__(self, captures: list[str], *, baseline_capture: str | None = "") -> None:
+    def __init__(
+        self,
+        captures: list[str],
+        *,
+        baseline_capture: str | None = "› Find and fix a bug in @filename\n",
+    ) -> None:
         self.captures = captures
         self.baseline_capture = baseline_capture
         self.calls: list[tuple[list[str], str | None]] = []

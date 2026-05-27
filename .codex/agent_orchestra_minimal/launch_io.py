@@ -8,6 +8,10 @@ from pathlib import Path
 
 from .codex_config import codex_config
 
+PRIVATE_DIR_MODE = 0o700
+PRIVATE_FILE_MODE = 0o600
+PRIVATE_EXECUTABLE_MODE = 0o700
+
 
 RUNTIME_FILES = (
     "agent_state.py",
@@ -24,6 +28,7 @@ RUNTIME_FILES = (
     "task_file.py",
     "tmux_targets.py",
     "tmux_delivery.py",
+    "tmux_probe.py",
     "rekick.py",
     "tmux_send.py",
     "tmux_wake.py",
@@ -44,26 +49,33 @@ def install_codex_material(codex_home: Path, workspace: Path, config_path: Path)
     skills_dir = codex_home / "skills"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     skills_dir.mkdir(parents=True, exist_ok=True)
+    hooks_dir.chmod(PRIVATE_DIR_MODE)
+    skills_dir.chmod(PRIVATE_DIR_MODE)
 
     hook_source = project_codex / "hooks" / "agent_orchestra_stop_hook.py"
     hook_target = hooks_dir / "agent_orchestra_stop_hook.py"
     shutil.copy2(hook_source, hook_target)
-    hook_target.chmod(0o755)
+    hook_target.chmod(PRIVATE_EXECUTABLE_MODE)
 
     for skill in SKILLS:
         _copy_tree(project_codex / "skills" / skill, skills_dir / skill)
+        _chmod_tree_private(skills_dir / skill)
 
     runtime_source = project_codex / "agent_orchestra_minimal"
     runtime_target = codex_home / "agent_orchestra_minimal"
     if runtime_target.exists():
         shutil.rmtree(runtime_target)
     runtime_target.mkdir(parents=True)
+    runtime_target.chmod(PRIVATE_DIR_MODE)
     for filename in RUNTIME_FILES:
         shutil.copy2(runtime_source / filename, runtime_target / filename)
+        (runtime_target / filename).chmod(PRIVATE_FILE_MODE)
     for dirname in RUNTIME_DIRS:
         shutil.copytree(runtime_source / dirname, runtime_target / dirname)
+        _chmod_tree_private(runtime_target / dirname)
 
     config_path.write_text(codex_config(workspace, config_path), encoding="utf-8")
+    config_path.chmod(PRIVATE_FILE_MODE)
 
 
 def install_auth_material(codex_home: Path, auth_source: str | Path | None) -> None:
@@ -76,7 +88,7 @@ def install_auth_material(codex_home: Path, auth_source: str | Path | None) -> N
         return
     target = codex_home / "auth.json"
     shutil.copy2(source, target)
-    target.chmod(0o600)
+    target.chmod(PRIVATE_FILE_MODE)
 
 
 def ensure_target_link(link_path: Path, target: Path) -> None:
@@ -103,6 +115,7 @@ def write_json(path: Path, data: object) -> None:
         json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    path.chmod(PRIVATE_FILE_MODE)
 
 
 def write_env_shell(path: Path, env: dict[str, str]) -> None:
@@ -110,9 +123,16 @@ def write_env_shell(path: Path, env: dict[str, str]) -> None:
     lines = ["# Source this file before launching the isolated Codex Agent."]
     lines.extend(f"export {key}={shlex.quote(value)}" for key, value in sorted(env.items()))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.chmod(PRIVATE_FILE_MODE)
 
 
 def _copy_tree(source: Path, target: Path) -> None:
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target)
+
+
+def _chmod_tree_private(root: Path) -> None:
+    for path in root.rglob("*"):
+        path.chmod(PRIVATE_DIR_MODE if path.is_dir() else PRIVATE_FILE_MODE)
+    root.chmod(PRIVATE_DIR_MODE)

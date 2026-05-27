@@ -56,6 +56,40 @@ class SharedTaskFileCandidateTests(unittest.TestCase):
 
                 self.assertFalse(task_file.has_unresolved_candidates)
 
+    def test_completed_candidate_dispositions_require_id_summary_and_evidence(
+        self,
+    ) -> None:
+        candidates = (
+            "disposition=integrated; summary=retry send; evidence=tests",
+            "candidate-1: disposition=integrated; evidence=tests",
+            "candidate-1: disposition=integrated; summary=retry send",
+        )
+
+        for candidate in candidates:
+            with self.subTest(candidate=candidate):
+                task_file = SharedTaskFile.parse(
+                    CANONICAL_EMPTY_TASK_FILE.replace(
+                        "[Candidates]\n\n",
+                        f"[Candidates]\n{candidate}\n\n",
+                    )
+                )
+
+                self.assertTrue(task_file.has_unresolved_candidates)
+
+    def test_duplicate_candidate_fields_remain_unresolved(self) -> None:
+        task_file = SharedTaskFile.parse(
+            CANONICAL_EMPTY_TASK_FILE.replace(
+                "[Candidates]\n\n",
+                (
+                    "[Candidates]\n"
+                    "candidate-1: disposition=integrated; summary=retry send; "
+                    "summary=duplicate; evidence=tests\n\n"
+                ),
+            )
+        )
+
+        self.assertTrue(task_file.has_unresolved_candidates)
+
 
 if __name__ == "__main__":
     unittest.main()

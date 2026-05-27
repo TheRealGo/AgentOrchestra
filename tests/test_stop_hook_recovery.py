@@ -24,7 +24,27 @@ class FakeTmux:
         stdout = ""
         if args[:2] == ["tmux", "capture-pane"]:
             self.capture_count += 1
-            stdout = "" if self.capture_count == 1 else "› runtime_wake\n\n• Working\n"
+            stdout = (
+                "› Implement {feature}\n"
+                if self.capture_count == 1
+                else "› runtime_wake\n\n• Working\n"
+            )
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
+
+
+class BusyThenReadyTmux(FakeTmux):
+    def __call__(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        self.calls.append((args, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
+        stdout = ""
+        if args[:2] == ["tmux", "capture-pane"]:
+            self.capture_count += 1
+            stdout = (
+                "• Working\n"
+                if self.capture_count < 7
+                else "› Implement {feature}\n"
+                if self.capture_count == 7
+                else "› runtime_wake\n\n• Working\n"
+            )
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
 
 
@@ -42,6 +62,22 @@ class StopHookRecoveryTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "main_status_progress")
+        self.assertTrue(any(call[0][:3] == ["tmux", "send-keys", "-t"] for call in fake.calls))
+
+    def test_stop_hook_waits_for_busy_target_to_become_input_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            task_file = Path(tmpdir) / "tasks.ini"
+            task_file.write_text(
+                "[status]\nprogress\n\n[Backlog]\n\n[InProgress]\n\n[InReview]\n\n[Candidates]\n\n[Done]\n",
+                encoding="utf-8",
+            )
+            fake = BusyThenReadyTmux()
+            decision = run_stop_hook(self.env(task_file, Path(tmpdir) / "missing.json", "MainAgent"), runner=fake)
+
+        self.assertIsNotNone(decision)
+        self.assertTrue(decision.should_wake)
+        self.assertEqual(decision.reason, "main_status_progress")
+        self.assertGreaterEqual(fake.capture_count, 8)
         self.assertTrue(any(call[0][:3] == ["tmux", "send-keys", "-t"] for call in fake.calls))
 
     def test_missing_main_state_accepts_agent_kind_aliases_from_environment(self) -> None:

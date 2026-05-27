@@ -111,6 +111,152 @@ class TmuxSendTests(unittest.TestCase):
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(send_key_calls), 1)
 
+    def test_send_text_does_not_paste_while_target_is_working(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[],
+            baseline_capture="› previous task\n\ngpt-5.5 default\n• Working\n",
+        )
+
+        result = send_text(
+            "%8",
+            "ProfessionalAgent: please review after you finish",
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+        )
+
+        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 0)
+        self.assertEqual(paste_calls, [])
+        self.assertEqual(send_key_calls, [])
+
+    def test_send_text_does_not_paste_over_existing_agent_message_prompt(self) -> None:
+        for baseline_capture in (
+            "› MainAgent: pending review request\n",
+            "› MainAgent reviewer: pending review request\n",
+            "› MainAgent -> pro-runtime: pending review request\n",
+            "> ProfessionalAgent: pending reply\n",
+            "> ProfessionalAgent runtime-engineer: pending reply\n",
+            "> ProfessionalAgent runtime-engineer -> requirements: pending reply\n",
+        ):
+            with self.subTest(baseline_capture=baseline_capture):
+                fake = FakeTmuxSend(captures=[], baseline_capture=baseline_capture)
+
+                result = send_text(
+                    "%8",
+                    "ProfessionalAgent: please review after you finish",
+                    runner=fake,
+                    poll_interval_seconds=0,
+                )
+
+                paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+                send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+                self.assertFalse(result.accepted)
+                self.assertEqual(result.attempts, 0)
+                self.assertEqual(paste_calls, [])
+                self.assertEqual(send_key_calls, [])
+
+    def test_send_text_treats_worked_for_footer_as_completed_before_prompt(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[
+                "› ProfessionalAgent: final review please\n\n• Working\n",
+            ],
+            baseline_capture=(
+                "› previous request\n\n"
+                "• Working\n\n"
+                "─ Worked for 3m 56s ────────────────────\n\n"
+                "› Write tests for @filename\n"
+            ),
+        )
+
+        result = send_text(
+            "%8",
+            "ProfessionalAgent: final review please",
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+        )
+
+        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(len(paste_calls), 1)
+
+    def test_send_text_does_not_treat_busy_ascii_quote_as_ready_prompt(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[],
+            baseline_capture=(
+                "› previous task\n\n"
+                "• Working\n"
+                "> quoted shell prompt example from analysis\n"
+                "  more response text\n"
+            ),
+        )
+
+        result = send_text(
+            "%8",
+            "MainAgent: review after current work",
+            runner=fake,
+            poll_interval_seconds=0,
+        )
+
+        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 0)
+        self.assertEqual(paste_calls, [])
+        self.assertEqual(send_key_calls, [])
+
+    def test_send_text_does_not_treat_busy_unicode_quote_as_ready_prompt(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[],
+            baseline_capture=(
+                "› previous task\n\n"
+                "• Working\n"
+                "› response text that starts like a prompt\n"
+                "  more response text\n"
+            ),
+        )
+
+        result = send_text(
+            "%8",
+            "MainAgent: review after current work",
+            runner=fake,
+            poll_interval_seconds=0,
+        )
+
+        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 0)
+        self.assertEqual(paste_calls, [])
+        self.assertEqual(send_key_calls, [])
+
+    def test_send_text_waits_for_peer_to_return_to_ready_prompt_before_paste(self) -> None:
+        fake = FakeTmuxSend(
+            captures=[
+                "› previous task\n\ngpt-5.5 default\n• Working\n",
+                "• Done.\n\n› Implement {feature}\n",
+                "› ProfessionalAgent: please review after you finish\n\n• Working\n",
+            ],
+            baseline_capture=None,
+        )
+
+        result = send_text(
+            "%8",
+            "ProfessionalAgent: please review after you finish",
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+        )
+
+        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(len(paste_calls), 1)
+
     def test_send_text_rejects_invalid_poll_bounds(self) -> None:
         cases = (
             ("max_retries", {"max_retries": -1}),

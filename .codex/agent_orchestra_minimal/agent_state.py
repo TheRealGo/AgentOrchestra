@@ -118,6 +118,7 @@ class AgentState:
             + "\n",
             encoding="utf-8",
         )
+        target.chmod(0o600)
         return target
 
     @property

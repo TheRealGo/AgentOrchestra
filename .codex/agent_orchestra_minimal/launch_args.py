@@ -20,6 +20,7 @@ CODEX_FLAGS_WITHOUT_VALUES = frozenset(
 )
 FORBIDDEN_CODEX_ARGS = frozenset(
     {
+        "--profile",
         "--profile-v2",
         "--ask-for-approval",
         "--sandbox",
@@ -71,7 +72,7 @@ def codex_launch_argv(
 ) -> list[str]:
     return [
         codex_binary,
-        "--profile-v2",
+        "--profile",
         "agent-orchestra",
         "--ask-for-approval",
         "never",

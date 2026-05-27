@@ -78,6 +78,7 @@ class SharedTaskFile:
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists():
             target.write_text(DEFAULT_TASK_FILE, encoding="utf-8")
+        target.chmod(0o600)
         return target
 
     @property

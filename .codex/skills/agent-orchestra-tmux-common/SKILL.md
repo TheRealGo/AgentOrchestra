@@ -31,17 +31,18 @@ Pasting text into the composer is not delivery.
 Use the runtime delivery helper for initial tasks, follow-up messages, review
 requests, and ProfessionalAgent-to-ProfessionalAgent consultation. It pastes,
 submits, captures the target pane, retries submit when the message is still in
-the composer, and returns non-zero if the target Codex TUI does not accept the
+the composer, waits for a busy peer to return to an input-ready prompt before
+pasting, and returns non-zero if the target Codex TUI does not accept the
 message:
 
 ```sh
 "$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.tmux_send --pane "$PANE" --text "$TEXT" --submit-key "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}" --poll-interval-seconds 0.5 --polls-per-attempt 60
 ```
 
-`--polls-per-attempt` lets the helper capture a few times after each submit so
-slow Codex TUI startup or a peer still finishing its current turn can be
-accepted before another submit is sent. Keep the window bounded; repeated
-checks are only delivery confirmation, not supervision.
+`--polls-per-attempt` lets the helper capture before pasting and after each
+submit so slow Codex TUI startup or a peer still finishing its current turn can
+settle without interrupting the active conversation. Keep the window bounded;
+repeated checks are only delivery confirmation, not supervision.
 
 If the helper exits non-zero, do not continue as if the message was delivered.
 Capture the target pane, verify the pane id and TUI state, and report or recover
