@@ -69,6 +69,9 @@ class ContinuousImprovementContractTests(unittest.TestCase):
             "Use Codex-native SubAgents proactively",
             "normally use at least one SubAgent for critique, evidence review, or alternative analysis before final completion",
             "record the sufficiency rationale",
+            "After every `runtime_wake` and at the start of every improvement cycle",
+            "resynchronize from the generated startup `AGENTS.md`, this MainAgent Role Contract",
+            "Treat the wake payload as a pointer back to already-loaded operating contracts",
         ):
             self.assertIn(phrase, main_template)
 
@@ -106,6 +109,122 @@ class ContinuousImprovementContractTests(unittest.TestCase):
             "until the accepted disposition is known",
         ):
             self.assertIn(phrase, spec)
+
+    def test_e2e_names_issue7_acceptance_gate(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "Issue #7",
+            "Long-Run Memory Dilution",
+            "`runtime_wake`",
+            "bounded resync signal",
+            "improvement-cycle boundary",
+            "cycle_done",
+            "generated startup `AGENTS.md`",
+            "MainAgent Role Contract",
+            "`agent-orchestra-team` Skill",
+            "shared task file",
+            "Agent state",
+            "smallest sufficient team",
+            "Layer15 process/QA",
+            "Team review",
+            "blocking-objection",
+            "candidate disposition",
+            "ProfessionalAgent retirement audit",
+            "accepted ProfessionalAgents are marked `retired`",
+            "sent `/exit`, and have pane cleanup verified",
+            "`kill-pane` only as cleanup after the attempted `/exit`",
+            "required checks run, skipped, or deferred with reason",
+            "python3 -m unittest discover -s tests",
+            "python3 -m py_compile",
+            "git diff --check",
+            "live long-duration execution",
+            "long-run-equivalent contract check",
+            "Residual risk remains",
+        ):
+            self.assertIn(phrase, spec)
+
+    def test_spec_fixed_wake_payload_matches_runtime_resync_contract(self) -> None:
+        spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+        canonical_payload = """\
+Canonical payload:
+
+```text
+runtime_wake
+source=hook
+user_instruction=false
+resync=startup_agents_role_contract_team_skill_task_state
+action=resume_existing_work_after_resync
+```"""
+
+        for phrase in (
+            "runtime_wake",
+            "source=hook",
+            "user_instruction=false",
+            "resync=startup_agents_role_contract_team_skill_task_state",
+            "action=resume_existing_work_after_resync",
+        ):
+            self.assertIn(phrase, spec)
+        self.assertIn(canonical_payload, spec)
+        self.assertIn("bounded resync signal", spec)
+
+    def test_spec_documents_issue7_long_run_resync_acceptance(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "Long-Run Memory Dilution",
+            "120-hour-class runs",
+            "every `runtime_wake` and every improvement-cycle boundary",
+            "generated startup `AGENTS.md`",
+            "MainAgent Role Contract",
+            "`agent-orchestra-team` Skill",
+            "shared task file",
+            "Agent state",
+            "ProfessionalAgent launch judgment",
+            "Layer15 process/QA",
+            "Team review and blocking-objection handling",
+            "ProfessionalAgent retirement audit",
+            "Residual risk remains",
+        ):
+            self.assertIn(phrase, spec)
+
+    def test_completion_criteria_include_long_run_equivalent_cycle_check(self) -> None:
+        spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "long-run-equivalent wake/cycle repetition",
+            "MainAgent resync",
+            "ProfessionalAgent launch",
+            "Layer15 process/QA judgment",
+            "Team review",
+            "final candidate sweep",
+            "pane-retirement audit",
+        ):
+            self.assertIn(phrase, spec)
+
+    def test_readmes_summarize_completion_state_contract(self) -> None:
+        readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+        readme_ja = " ".join((ROOT / "README.ja.md").read_text(encoding="utf-8").split())
+
+        for phrase in (
+            "The shared task file starts at `[status] done` only as the empty quiet baseline",
+            "`[status] progress`",
+            "every `[Candidates]` ledger item has an id, summary, completed disposition, and evidence pointer",
+            "Accepted ProfessionalAgents are marked `retired`, sent `/exit`",
+            "AGENT_ORCHESTRA_TARGET_PROJECT",
+            "AGENT_ORCHESTRA_EDIT_ROOT",
+        ):
+            self.assertIn(phrase, readme)
+        for phrase in (
+            "共有タスクファイルの `[status] done`",
+            "`[status] progress`",
+            "`[Candidates]` ledger",
+            "id、summary、完了 disposition、evidence pointer",
+            "ProfessionalAgent は `retired` にし",
+            "AGENT_ORCHESTRA_TARGET_PROJECT",
+            "AGENT_ORCHESTRA_EDIT_ROOT",
+        ):
+            self.assertIn(phrase, readme_ja)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import os
+from pathlib import Path
+import subprocess
 
 from .tmux_targets import optional_tmux_pane
 
@@ -30,7 +32,16 @@ FORBIDDEN_CODEX_ARGS = frozenset(
         "--dangerously-bypass-hook-trust",
     }
 )
-FORBIDDEN_CONFIG_FRAGMENTS = ("sandbox", "hook", "approval", "cd", "add-dir", "profile")
+FORBIDDEN_CONFIG_FRAGMENTS = (
+    "sandbox",
+    "hook",
+    "approval",
+    "cd",
+    "add-dir",
+    "profile",
+    "default-permissions",
+    "permissions.",
+)
 
 
 def validate_codex_args(args: Sequence[str]) -> tuple[str, ...]:
@@ -68,9 +79,10 @@ def codex_launch_argv(
     *,
     workspace: str,
     target_project: str,
+    access_roots: Sequence[str] = (),
     extra_args: Sequence[str] = (),
 ) -> list[str]:
-    return [
+    argv = [
         codex_binary,
         "--profile",
         "agent-orchestra",
@@ -86,8 +98,38 @@ def codex_launch_argv(
         workspace,
         "--add-dir",
         target_project,
-        *extra_args,
     ]
+    for root in access_roots:
+        if root != target_project:
+            argv.extend(["--add-dir", root])
+    argv.extend(extra_args)
+    return argv
+
+
+def editable_access_roots(target_root: Path) -> tuple[Path, ...]:
+    roots = [target_root]
+    git_root = git_worktree_root(target_root)
+    if git_root and git_root != target_root:
+        roots.append(git_root)
+    return tuple(roots)
+
+
+def git_worktree_root(path: Path) -> Path | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    root_text = result.stdout.strip()
+    if not root_text:
+        return None
+    root = Path(root_text).expanduser().resolve()
+    return root if root.is_dir() else None
 
 
 def _is_boundary_config(value: str) -> bool:

@@ -11,7 +11,15 @@ from .tmux_delivery import DEFAULT_SUBMIT_KEY, DeliveryResult, Runner, normalize
 from .tmux_targets import optional_tmux_pane, required_tmux_pane
 
 
-WAKE_PAYLOAD = "runtime_wake\nsource=hook\nuser_instruction=false"
+WAKE_PAYLOAD = "\n".join(
+    (
+        "runtime_wake",
+        "source=hook",
+        "user_instruction=false",
+        "resync=startup_agents_role_contract_team_skill_task_state",
+        "action=resume_existing_work_after_resync",
+    )
+)
 WAKE_BUFFER_PREFIX = "agent-orchestra-wake"
 WAKE_POLLS_PER_ATTEMPT = 60
 WAKE_POLL_INTERVAL_SECONDS = 0.05

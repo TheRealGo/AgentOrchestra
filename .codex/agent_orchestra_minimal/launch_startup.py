@@ -22,17 +22,25 @@ def agents_md(
     agent_kind: str,
     lead_layer: str | None,
     target_project: Path,
+    access_roots: tuple[Path, ...] = (),
     task_file: Path,
     state_file: Path,
     assigned_text: str,
 ) -> str:
     layer_line = f"- Lead layer: `{lead_layer}`\n" if lead_layer else ""
+    access_lines = ""
+    if access_roots:
+        formatted = "\n".join(f"  - `{root}`" for root in access_roots)
+        access_lines = f"- Editable/access roots:\n{formatted}\n"
     contract = role_contract(agent_kind)
     return f"""# agent-orchestra Isolated Startup
 
 - Agent id: `{agent_id}`
 - Agent kind: `{agent_kind}`
 {layer_line}- Target project data: `{target_project}`
+{access_lines}- If an editable/access root differs from target project data, use the editable
+  root for git status, patching, and verification while preserving the user's
+  requested target scope.
 - Shared task file: `{task_file}`
 - Agent state file: `{state_file}`
 

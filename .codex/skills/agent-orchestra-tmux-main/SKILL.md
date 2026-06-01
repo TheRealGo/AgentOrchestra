@@ -72,18 +72,14 @@ work.
 tmux send-keys -t "$PANE" "/exit" "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
 ```
 
-Retirement is not complete until the pane is gone. After a short wait, verify
-the pane id is absent:
+Retirement is not complete until the pane is gone. After a short wait, check
+whether the pane id is still present:
 
 ```sh
-tmux list-panes -a -F '#{pane_id}' | rg -qxF "$PANE"
-```
-
-If the accepted pane remains, capture any final output and force-close it:
-
-```sh
-tmux capture-pane -t "$PANE" -p -S -120
-tmux kill-pane -t "$PANE"
+if tmux list-panes -a -F '#{pane_id}' | rg -qxF "$PANE"; then
+  tmux capture-pane -t "$PANE" -p -S -120
+  tmux kill-pane -t "$PANE"
+fi
 ```
 
 Do not finish a run with accepted ProfessionalAgent panes still present. The

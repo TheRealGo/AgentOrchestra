@@ -102,6 +102,28 @@ The runtime does not decide requirements or quality. Agents make those
 judgments; the runtime only provides deterministic rails for launch, tmux
 delivery, shared task state, and Stop Hook wake behavior.
 
+## Completion State
+
+The shared task file starts at `[status] done` only as the empty quiet baseline.
+When a user task, discovery, implementation, or review begins, Agents record
+open work in `[Backlog]`, `[InProgress]`, or `[InReview]` and set
+`[status] progress`.
+
+For open-ended improvement runs, MainAgent should finish only after open work is
+empty and every `[Candidates]` ledger item has an id, summary, completed
+disposition, and evidence pointer. Accepted ProfessionalAgents are marked
+`retired`, sent `/exit`, and their panes are verified or cleaned up before
+completion is reported.
+
+## Target And Edit Roots
+
+The requested target project remains the Agent's scoped project data. When that
+target is nested inside a larger Git worktree, launch material also grants the
+worktree root as an editable access root so Agents can run `git status`, patch
+tracked files, and verify from the repository root without widening the user
+request. Agents use `AGENT_ORCHESTRA_TARGET_PROJECT` for the requested scope and
+`AGENT_ORCHESTRA_EDIT_ROOT` for git, patching, and verification commands.
+
 ## Check Your Environment
 
 Use `doctor` when you want to confirm local prerequisites before starting a
@@ -117,6 +139,14 @@ To include a disposable Codex TUI tmux transport probe:
 nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
   --tui-transport
+```
+
+To include Codex CLI's own machine-readable diagnostics:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --codex-doctor
 ```
 
 ## Updating

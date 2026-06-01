@@ -48,7 +48,7 @@ class SpecContractTests(unittest.TestCase):
         required_phrases = [
             "checks = forAllSystems",
             'source-contract = pkgs.runCommand "agent-orchestra-source-contract-tests"',
-            "nativeBuildInputs = [ pkgs.python3 ];",
+            "nativeBuildInputs = [ pkgs.python3 pkgs.git ];",
             "find .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0",
             "xargs -0 python3 -m py_compile",
             "python3 -m unittest discover -s tests",
@@ -81,6 +81,7 @@ class SpecContractTests(unittest.TestCase):
             "Runtime must not own",
             "`--cd` points at the isolated workspace",
             "`--add-dir` grants access to the target project",
+            "a detected parent Git worktree root is an additional editable/access root",
             "`--profile agent-orchestra` loads the minimal Hook/project-trust config",
             "legacy or user-supplied profile flags such as `--profile-v2`",
             "must be rejected from extra Codex args",

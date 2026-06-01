@@ -62,7 +62,7 @@
       checks = forAllSystems (
         { pkgs, ... }:
         {
-          source-contract = pkgs.runCommand "agent-orchestra-source-contract-tests" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+          source-contract = pkgs.runCommand "agent-orchestra-source-contract-tests" { nativeBuildInputs = [ pkgs.python3 pkgs.git ]; } ''
             cp -R ${self} source
             chmod -R u+w source
             cd source

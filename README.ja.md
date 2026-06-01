@@ -102,6 +102,29 @@ MainAgent は、依頼内容に応じて専門の ProfessionalAgent が必要か
 ランタイムは、起動、tmux 配送、共有タスク状態、Stop Hook wake のための
 決定的な安全柵だけを提供します。
 
+## 完了状態
+
+共有タスクファイルの `[status] done` は、まだ open work がない空の静かな
+初期状態を表すだけです。ユーザー依頼、調査、実装、レビューが始まったら、
+Agent は `[Backlog]`、`[InProgress]`、`[InReview]` に open work を記録し、
+`[status] progress` に切り替えます。
+
+改善点がなくなるまで続ける run では、MainAgent は open work が空で、
+`[Candidates]` ledger の各項目に id、summary、完了 disposition、evidence
+pointer が入っている場合だけ完了できます。受け入れ済みの ProfessionalAgent
+は `retired` にし、`/exit` を送り、pane が閉じたことを確認または cleanup
+してから完了報告します。
+
+## Target と edit root
+
+ユーザーが指定した target project は、Agent の要求スコープを表す project
+data のままです。その target がより大きな Git worktree の内側にある場合、
+launch material は worktree root も editable access root として渡します。
+これにより、Agent はユーザー要求を広げずに repository root から `git
+status`、patch、検証を実行できます。Agent は要求スコープには
+`AGENT_ORCHESTRA_TARGET_PROJECT` を使い、git、patch、検証には
+`AGENT_ORCHESTRA_EDIT_ROOT` を使います。
+
 ## 環境チェック
 
 起動前にローカル前提条件を確認したい場合は `doctor` を使います。
@@ -117,6 +140,14 @@ Codex TUI への tmux transport probe まで確認する場合:
 nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
   --tui-transport
+```
+
+Codex CLI 自体の machine-readable diagnostics も確認する場合:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --codex-doctor
 ```
 
 ## 更新

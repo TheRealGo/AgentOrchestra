@@ -117,6 +117,8 @@ Runtime側の責務は最小限の機械処理です。
 runtime_wake
 source=hook
 user_instruction=false
+resync=startup_agents_role_contract_team_skill_task_state
+action=resume_existing_work_after_resync
 ```
 
 Runtime/Hookは「判断する監督者」ではありません。
@@ -380,13 +382,18 @@ The runtime prepares a launch surface for each Agent before Codex starts:
 - project-local runtime Skills required for Agent operation;
 - project-local hooks;
 - required environment variables;
-- target project access as data through Codex CLI `--add-dir`.
+- target project access as data through Codex CLI `--add-dir`;
+- when the requested target is inside a Git worktree whose root is outside the
+  target path, the Git worktree root is also granted through `--add-dir` and
+  exposed as the editable root so Agents can patch tracked files.
 
 The Codex CLI launch itself should use first-class Codex options:
 
 - `--cd` points at the isolated workspace that contains the generated
   startup `AGENTS.md`;
 - `--add-dir` grants access to the target project as data/workspace material;
+- a detected parent Git worktree root is an additional editable/access root,
+  while the original target remains the user-requested scope;
 - `--profile agent-orchestra` loads the minimal Hook/project-trust config
   from `CODEX_HOME`;
 - legacy or user-supplied profile flags such as `--profile-v2` are runtime
@@ -616,10 +623,49 @@ Canonical payload:
 runtime_wake
 source=hook
 user_instruction=false
+resync=startup_agents_role_contract_team_skill_task_state
+action=resume_existing_work_after_resync
 ```
 
-Agents must treat this as "continue your existing work according to current
-state", not as new user requirements.
+Agents must treat this as a bounded resync signal: reload the already-loaded
+startup Agent role contract, relevant Skills, shared task file, and Agent state,
+then continue existing work according to that state. It is not a new user
+requirement.
+
+### GitHub Issue #7: Long-Run Memory Dilution
+
+Long-running operation, including 120-hour-class runs, assumes that an Agent's
+conversation memory can become incomplete or diluted. The current mitigation is
+contractual and mechanical rather than semantic: every `runtime_wake` and every
+improvement-cycle boundary requires MainAgent to resynchronize from generated
+startup `AGENTS.md`, the MainAgent Role Contract, the `agent-orchestra-team`
+Skill, the shared task file, and its Agent state before choosing whether to
+continue, launch ProfessionalAgents, stop, or report completion.
+
+This resynchronization is sufficient only if the reloaded contract still drives
+the run's operational decisions. A long-run-equivalent wake/cycle check must
+confirm that MainAgent preserves ProfessionalAgent launch judgment, the active
+layer perspective such as Layer15 process/QA for release and E2E work, Team
+review and blocking-objection handling, final improvement-candidate sweep, and
+ProfessionalAgent retirement audit. Residual risk remains that an Agent can
+fail to perform a semantic final sweep even though the Hook and task file are
+mechanically consistent; that risk must be recorded as a completed
+`[Candidates]` disposition, Backlog item, or follow-up issue when discovered.
+
+The Issue #7 E2E acceptance gate must be backed by tracked repository evidence,
+not by ignored local run logs. That gate covers `runtime_wake` bounded resync,
+`cycle_done` versus run completion, generated startup `AGENTS.md`, MainAgent
+Role Contract, `agent-orchestra-team` Skill, shared task file, Agent state,
+smallest sufficient team selection, Layer15 process/QA judgment, Team review,
+blocking-objection evidence, candidate disposition, and ProfessionalAgent
+retirement audit. Retirement evidence must show that accepted ProfessionalAgents
+are marked `retired`, sent `/exit`, and have pane cleanup verified, with
+`kill-pane` only as cleanup after the attempted `/exit`. Acceptance evidence
+must also report whether the run used live long-duration execution or a
+long-run-equivalent contract check, include verification commands such as
+`python3 -m unittest discover -s tests`, `python3 -m py_compile`,
+`git diff --check`, and applicable Nix checks, and record any residual risk or
+deferred criterion explicitly.
 
 ## Minimal Runtime Responsibilities
 
@@ -798,6 +844,11 @@ The minimal runtime is acceptable when tests and E2E evidence show:
 - ProfessionalAgents can send messages to MainAgent or peer panes through the
   same Skill-defined delivery procedures and record consultation evidence;
 - Stop Hook re-kicks MainAgent while open work remains;
+- long-run-equivalent wake/cycle repetition preserves MainAgent resync from
+  generated startup `AGENTS.md`, the MainAgent Role Contract, the
+  `agent-orchestra-team` Skill, shared task file, and Agent state before
+  ProfessionalAgent launch, Layer15 process/QA judgment, Team review, final
+  candidate sweep, or pane-retirement audit decisions;
 - Stop Hook does not re-kick MainAgent after `status=done`, no open work, and
   completed `[Candidates]` dispositions;
 - Stop Hook re-kicks a ProfessionalAgent only when its own state is active;

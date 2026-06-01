@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,7 +46,11 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("--enable", material.command["argv"])
             self.assertIn("--cd", material.command["argv"])
             self.assertIn("--add-dir", material.command["argv"])
-            self.assertEqual(material.command["argv"][-1], str(ROOT))
+            argv = list(material.command["argv"])
+            add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
+            self.assertEqual(add_dirs[0], str(ROOT))
+            self.assertEqual(material.env["AGENT_ORCHESTRA_TARGET_PROJECT"], str(ROOT))
+            self.assertEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], add_dirs[-1])
             self.assertNotIn(
                 "Start the agent-orchestra MainAgent run using the loaded AGENTS.md instructions.",
                 material.command["argv"],
@@ -149,6 +154,34 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("配送確認できない通信を成功扱いしない", startup)
             self.assertIn("concrete send/capture/retry procedure", startup_normalized)
             self.assertIn("Runtime側は判断しません", startup)
+
+    def test_launch_material_adds_git_root_when_target_is_nested_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "repo"
+            target = root / "nested" / "target"
+            target.mkdir(parents=True)
+            subprocess.run(["git", "init", str(root)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            root = root.resolve()
+            target = target.resolve()
+
+            material = prepare_launch_material(
+                run_dir=Path(tmpdir) / "run",
+                agent_id="pro-git-root",
+                agent_kind="ProfessionalAgent",
+                target_project=target,
+                instruction_text="Layer instruction.",
+            )
+
+            argv = list(material.command["argv"])
+            add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
+            self.assertEqual(add_dirs, [str(target), str(root)])
+            self.assertEqual(material.env["AGENT_ORCHESTRA_TARGET_PROJECT"], str(target))
+            self.assertEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], str(root))
+            self.assertIn(str(root), material.env["AGENT_ORCHESTRA_ACCESS_ROOTS"])
+            startup = material.startup_agents.read_text(encoding="utf-8")
+            self.assertIn("Editable/access roots", startup)
+            self.assertIn(str(target), startup)
+            self.assertIn(str(root), startup)
 
     def test_professional_agent_startup_surface_states_equal_editing_role(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

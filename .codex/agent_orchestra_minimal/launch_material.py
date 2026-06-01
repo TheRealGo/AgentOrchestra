@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
-from .launch_args import codex_launch_argv, main_tmux_pane, optional_tmux_pane, validate_codex_args
+from .launch_args import codex_launch_argv, editable_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
 from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
 from .task_file import SharedTaskFile
@@ -32,6 +32,7 @@ class LaunchMaterial:
     env: dict[str, str]
     command: dict[str, object]
 
+
 def prepare_launch_material(
     *,
     run_dir: str | Path,
@@ -53,16 +54,12 @@ def prepare_launch_material(
     target_root = Path(target_project).expanduser().resolve(strict=True)
     if not target_root.is_dir():
         raise NotADirectoryError(target_root)
+    access_roots = editable_access_roots(target_root)
     assigned_text = startup_text(instruction_text, instruction_source)
     run_root = Path(run_dir).expanduser().resolve()
     agent_dir = run_root / "agents" / agent_id
-    workspace = agent_dir / "workspace"
-    home = agent_dir / "home"
-    codex_home = agent_dir / "codex_home"
-    state_file = agent_dir / "state.json"
-    env_path = agent_dir / "env.json"
-    env_shell_path = agent_dir / "env.sh"
-    command_path = agent_dir / "command.json"
+    workspace, home, codex_home = agent_dir / "workspace", agent_dir / "home", agent_dir / "codex_home"
+    state_file, env_path, env_shell_path, command_path = agent_dir / "state.json", agent_dir / "env.json", agent_dir / "env.sh", agent_dir / "command.json"
     config_path = codex_home / "agent-orchestra.config.toml"
     shared_task = Path(task_file).expanduser().resolve() if task_file else run_root / "tasks.ini"
     normalized_tmux_pane = optional_tmux_pane(tmux_pane)
@@ -95,6 +92,7 @@ def prepare_launch_material(
             agent_kind=kind,
             lead_layer=lead_layer,
             target_project=target_root,
+            access_roots=access_roots,
             task_file=shared_task,
             state_file=state_file,
             assigned_text=assigned_text,
@@ -118,6 +116,8 @@ def prepare_launch_material(
         "AGENT_ORCHESTRA_TASK_FILE": str(shared_task),
         "AGENT_ORCHESTRA_AGENT_STATE": str(state_file),
         "AGENT_ORCHESTRA_TARGET_PROJECT": str(target_root),
+        "AGENT_ORCHESTRA_ACCESS_ROOTS": os.pathsep.join(str(root) for root in access_roots),
+        "AGENT_ORCHESTRA_EDIT_ROOT": str(access_roots[-1]),
         "AGENT_ORCHESTRA_PYTHON": sys.executable,
         "AGENT_ORCHESTRA_TUI_SUBMIT_KEY": submit_key,
     }
@@ -131,6 +131,7 @@ def prepare_launch_material(
         codex_binary,
         workspace=str(workspace),
         target_project=str(target_root),
+        access_roots=tuple(str(root) for root in access_roots),
         extra_args=extra_codex_args,
     )
     command = {

@@ -105,6 +105,8 @@ Runtime側の責務は最小限の機械処理です。
 runtime_wake
 source=hook
 user_instruction=false
+resync=startup_agents_role_contract_team_skill_task_state
+action=resume_existing_work_after_resync
 ```
 
 Runtime/Hookは「判断する監督者」ではありません。

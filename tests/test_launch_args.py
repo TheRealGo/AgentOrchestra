@@ -32,6 +32,8 @@ class LaunchArgsTests(unittest.TestCase):
                 ("--dangerously-bypass-approvals-and-sandbox",),
                 ("-c", "sandbox_mode=danger-full-access"),
                 ("-c", "hooks.enabled=false"),
+                ("-c", "default_permissions=:workspace"),
+                ("-c", "permissions.project-edit.network.enabled=true"),
                 ("--model", "--cd"),
                 ("--model", "--"),
                 ("--model", "--no-alt-screen"),

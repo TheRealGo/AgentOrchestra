@@ -43,6 +43,9 @@ class StopHookAndTmuxTests(unittest.TestCase):
         flattened = [part for args, _ in fake.calls for part in args]
         self.assertIn(DEFAULT_SUBMIT_KEY, flattened)
         self.assertTrue(wake_buffer.startswith(f"{WAKE_BUFFER_PREFIX}-"))
+        self.assertIn("user_instruction=false", WAKE_PAYLOAD)
+        self.assertIn("resync=startup_agents_role_contract_team_skill_task_state", WAKE_PAYLOAD)
+        self.assertIn("action=resume_existing_work_after_resync", WAKE_PAYLOAD)
 
     def test_wake_command_allows_configured_submit_key(self) -> None:
         fake = FakeTmux()

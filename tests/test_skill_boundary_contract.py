@@ -98,16 +98,17 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "Verify pane cleanup and use `kill-pane`",
             "Set `retired` before `/exit`",
             "Retirement is not complete until the pane is gone",
-            "capture any final output and force-close it",
+            "whether the pane id is still present",
             "Do not finish a run with accepted ProfessionalAgent panes still present",
             "does not replace pane cleanup",
         ):
             self.assertIn(phrase, normalized)
 
         self.assertIn('tmux send-keys -t "$PANE" "/exit" "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"', main)
-        self.assertIn("tmux list-panes -a -F '#{pane_id}' | rg -qxF \"$PANE\"", main)
+        self.assertIn("if tmux list-panes -a -F '#{pane_id}' | rg -qxF \"$PANE\"; then", main)
         self.assertIn('tmux capture-pane -t "$PANE" -p -S -120', main)
         self.assertIn('tmux kill-pane -t "$PANE"', main)
+        self.assertNotIn("verify\nthe pane id is absent", main)
 
     def test_tmux_main_skill_documents_requested_mainagent_self_exit(self) -> None:
         main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")

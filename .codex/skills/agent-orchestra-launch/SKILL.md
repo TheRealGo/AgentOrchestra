@@ -44,6 +44,10 @@ codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-wri
 
 `--cd` points at the isolated workspace with generated `AGENTS.md`.
 `--add-dir` grants target project access as data/workspace material.
+When the requested target is nested inside a Git worktree, runtime may add the
+worktree root as an additional `--add-dir`; Agents should use
+`$AGENT_ORCHESTRA_EDIT_ROOT` for git status, patching, and verification while
+preserving `$AGENT_ORCHESTRA_TARGET_PROJECT` as the user-requested scope.
 `CODEX_HOME` points at the isolated `codex_home`.
 
 ## Prepare Material

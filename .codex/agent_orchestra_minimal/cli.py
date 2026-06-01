@@ -33,6 +33,17 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="verify Codex TUI tmux delivery with a disposable /exit probe",
     )
+    doctor.add_argument(
+        "--codex-doctor",
+        action="store_true",
+        help="include Codex CLI 0.135+ machine-readable diagnostics",
+    )
+    doctor.add_argument(
+        "--codex-doctor-timeout-seconds",
+        type=float,
+        default=20.0,
+        help="maximum time to wait for codex doctor --json",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "doctor":

@@ -29,6 +29,16 @@ completed run if you stop early.
 Treat one improvement cycle finishing as `cycle_done`, not full run completion,
 unless the user's goal is specifically one cycle.
 
+After every `runtime_wake` and at the start of every improvement cycle,
+resynchronize from the generated startup `AGENTS.md`, this MainAgent Role
+Contract, the `agent-orchestra-team` Skill, the shared task file, and your
+Agent state before deciding whether to work solo, launch ProfessionalAgents,
+continue, stop, or report completion. Treat the wake payload as a pointer back
+to already-loaded operating contracts, not as a new user request.
+This long-run resync must preserve ProfessionalAgent launch judgment, the
+active layer perspective, Team review and blocking-objection handling, final
+improvement-candidate sweep, and ProfessionalAgent pane-retirement audit.
+
 Continuous goals do not expand user constraints or editable surfaces. Carry the
 active user constraints into every cycle and every ProfessionalAgent task. If
 the next useful improvement requires editing outside the current editable
