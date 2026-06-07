@@ -13,11 +13,16 @@ sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
 from agent_orchestra_minimal.cli import current_tmux_pane  # noqa: E402
-from agent_orchestra_minimal.launch_args import main_tmux_pane  # noqa: E402
+from agent_orchestra_minimal.codex_features import CodexFeatureReport  # noqa: E402
+from agent_orchestra_minimal.launch_args import codex_launch_argv, main_tmux_pane  # noqa: E402
+from agent_orchestra_minimal.launch_args import _codex_supports_prevent_idle_sleep  # noqa: E402
 from agent_orchestra_minimal.launch_material import prepare_launch_material  # noqa: E402
 
 
 class LaunchArgsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _codex_supports_prevent_idle_sleep.cache_clear()
+
     def test_launch_material_rejects_codex_args_that_look_like_initial_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             bad_args = (
@@ -25,20 +30,38 @@ class LaunchArgsTests(unittest.TestCase):
                 ("fix", "launcher"),
                 ("exec", "echo ok"),
                 ("--profile", "agent-orchestra"),
+                ("--profile=agent-orchestra",),
                 ("--profile-v2", "agent-orchestra"),
+                ("--profile-v2=agent-orchestra",),
+                ("--enable", "prevent_idle_sleep"),
+                ("--enable=prevent_idle_sleep",),
                 ("--cd", str(ROOT)),
+                (f"--cd={ROOT}",),
                 ("--add-dir", str(ROOT)),
+                (f"--add-dir={ROOT}",),
                 ("--dangerously-bypass-hook-trust",),
+                ("--dangerously-bypass-hook-trust=true",),
                 ("--dangerously-bypass-approvals-and-sandbox",),
+                ("--dangerously-bypass-approvals-and-sandbox=true",),
                 ("-c", "sandbox_mode=danger-full-access"),
                 ("-c", "hooks.enabled=false"),
                 ("-c", "default_permissions=:workspace"),
                 ("-c", "permissions.project-edit.network.enabled=true"),
+                ("-c=sandbox_mode=danger-full-access",),
+                ("-c=hooks.enabled=false",),
+                ("-c=default_permissions=:workspace",),
+                ("-c=permissions.project-edit.network.enabled=true",),
                 ("--model", "--cd"),
+                ("--model=--cd",),
+                ("--model=",),
                 ("--model", "--"),
                 ("--model", "--no-alt-screen"),
                 ("-m", "--add-dir"),
+                ("-m=--add-dir",),
+                ("-m=",),
                 ("-c", "--no-alt-screen"),
+                ("-c=--no-alt-screen",),
+                ("-c=",),
             )
             for codex_args in bad_args:
                 with self.subTest(codex_args=codex_args):
@@ -52,6 +75,22 @@ class LaunchArgsTests(unittest.TestCase):
                             codex_args=codex_args,
                         )
 
+    def test_invalid_codex_args_do_not_write_partial_launch_material(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "run"
+
+            with self.assertRaisesRegex(ValueError, "codex_args"):
+                prepare_launch_material(
+                    run_dir=run_dir,
+                    agent_id="pro-bad-argv",
+                    agent_kind="ProfessionalAgent",
+                    target_project=ROOT,
+                    instruction_text="Docs instruction.",
+                    codex_args=("--profile", "agent-orchestra"),
+                )
+
+            self.assertFalse((run_dir / "agents" / "pro-bad-argv").exists())
+
     def test_launch_material_accepts_narrow_safe_codex_args(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_launch_material(
@@ -60,13 +99,87 @@ class LaunchArgsTests(unittest.TestCase):
                 agent_kind="ProfessionalAgent",
                 target_project=ROOT,
                 instruction_text="Docs instruction.",
-                codex_args=("--model", "gpt-5.5", "--no-alt-screen", "-c", "model_reasoning_effort=high"),
+                codex_args=(
+                    "--model",
+                    "gpt-5.5",
+                    "--model=gpt-5.5",
+                    "-m=gpt-5.5",
+                    "--no-alt-screen",
+                    "-c",
+                    "model_reasoning_effort=high",
+                    "-c=model_reasoning_effort=high",
+                ),
             )
 
         argv = material.command["argv"]
         self.assertIn("--model", argv)
+        self.assertIn("--model=gpt-5.5", argv)
+        self.assertIn("-m=gpt-5.5", argv)
         self.assertIn("--no-alt-screen", argv)
         self.assertIn("model_reasoning_effort=high", argv)
+        self.assertIn("-c=model_reasoning_effort=high", argv)
+
+    def test_launch_argv_enables_prevent_idle_sleep_when_codex_feature_exists(self) -> None:
+        report = CodexFeatureReport(
+            failed=False,
+            features={"prevent_idle_sleep": "disabled"},
+            lines=["Codex features prevent_idle_sleep=disabled"],
+        )
+        with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
+            argv = codex_launch_argv(
+                "codex",
+                workspace="/tmp/workspace",
+                target_project=str(ROOT),
+            )
+
+        self.assertIn("--enable", argv)
+        self.assertIn("prevent_idle_sleep", argv)
+
+    def test_launch_argv_does_not_enable_prevent_idle_sleep_when_feature_probe_fails(self) -> None:
+        report = CodexFeatureReport(
+            failed=True,
+            features={},
+            lines=["Codex features list could not run"],
+        )
+        with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
+            argv = codex_launch_argv(
+                "codex",
+                workspace="/tmp/workspace",
+                target_project=str(ROOT),
+            )
+
+        self.assertNotIn("prevent_idle_sleep", argv)
+
+    def test_launch_argv_does_not_enable_prevent_idle_sleep_when_feature_is_absent(self) -> None:
+        report = CodexFeatureReport(
+            failed=False,
+            features={"prevent_idle_sleep": "absent"},
+            lines=["Codex features prevent_idle_sleep=absent"],
+        )
+        with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
+            argv = codex_launch_argv(
+                "codex",
+                workspace="/tmp/workspace",
+                target_project=str(ROOT),
+            )
+
+        self.assertNotIn("prevent_idle_sleep", argv)
+
+    def test_launch_argv_prevent_idle_sleep_opt_out(self) -> None:
+        report = CodexFeatureReport(
+            failed=False,
+            features={"prevent_idle_sleep": "disabled"},
+            lines=["Codex features prevent_idle_sleep=disabled"],
+        )
+        with patch.dict(os.environ, {"AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP": "1"}, clear=False):
+            with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
+                argv = codex_launch_argv(
+                    "codex",
+                    workspace="/tmp/workspace",
+                    target_project=str(ROOT),
+                )
+
+        self.assertNotIn("prevent_idle_sleep", argv)
 
     def test_professional_main_pane_requires_explicit_main_pane_environment(self) -> None:
         with patch.dict(os.environ, {"AGENT_ORCHESTRA_TMUX_PANE": "%caller"}, clear=True):

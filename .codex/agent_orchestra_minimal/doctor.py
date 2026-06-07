@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .codex_features import run_codex_features_list
 from .prepare_agent_launch import run_probe
+from .task_file import SharedTaskFile
 
 
 def doctor_command(args: argparse.Namespace) -> int:
@@ -47,6 +49,24 @@ def doctor_command(args: argparse.Namespace) -> int:
             return 1
         for line in report.lines:
             print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if getattr(args, "codex_features", False):
+        report = run_codex_features_list()
+        if report.failed:
+            print("agent-orchestra doctor: failed", file=sys.stderr)
+            for line in report.lines:
+                print(f"- {line}", file=sys.stderr)
+            return 1
+        for line in report.lines:
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if task_file_path := getattr(args, "task_file", None):
+        report = inspect_task_file(Path(task_file_path).expanduser())
+        if report.failed:
+            print("agent-orchestra doctor: failed", file=sys.stderr)
+            for line in report.lines:
+                print(f"- {line}", file=sys.stderr)
+            return 1
+        for line in report.lines:
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
     print("agent-orchestra doctor: ok")
     return 0
 
@@ -67,6 +87,32 @@ class CodexDoctorReport:
     def __init__(self, *, failed: bool, lines: list[str]) -> None:
         self.failed = failed
         self.lines = lines
+
+
+class TaskFileDoctorReport:
+    def __init__(self, *, failed: bool, lines: list[str]) -> None:
+        self.failed = failed
+        self.lines = lines
+
+
+def inspect_task_file(path: Path) -> TaskFileDoctorReport:
+    try:
+        task_file = SharedTaskFile.read(path)
+    except (OSError, ValueError) as exc:
+        return TaskFileDoctorReport(
+            failed=True,
+            lines=[f"shared task file invalid or unreadable: {path}: {exc}"],
+        )
+    if task_file.finalization_blockers:
+        return TaskFileDoctorReport(
+            failed=True,
+            lines=["shared task file has finalization blockers:"]
+            + [f"  {blocker}" for blocker in task_file.finalization_blockers],
+        )
+    return TaskFileDoctorReport(
+        failed=False,
+        lines=[f"shared task file finalized: {path}"],
+    )
 
 
 def run_codex_doctor(

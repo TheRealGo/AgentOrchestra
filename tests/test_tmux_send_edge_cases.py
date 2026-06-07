@@ -181,6 +181,27 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
 
+    def test_send_text_does_not_accept_consumed_probe_without_activity_marker(self) -> None:
+        message = "MainAgent -> pro-runtime: review delivery confirmation"
+        fake = FakeTmuxSend(
+            captures=[
+                f"› {message}\n",
+                "gpt-5.5 default\n\n› Find and fix a bug in @filename\n",
+            ]
+        )
+
+        result = send_text(
+            "%8",
+            message,
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+            max_retries=0,
+        )
+
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 1)
+
     def test_send_text_does_not_accept_ready_prompt_without_fresh_probe_seen(self) -> None:
         fake = FakeTmuxSend(captures=["• Accept.\n\n› Find and fix a bug in @filename\n"])
 
@@ -190,6 +211,29 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
             runner=fake,
             max_retries=0,
             poll_interval_seconds=0,
+        )
+
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 1)
+
+    def test_send_text_does_not_accept_old_activity_before_baseline_prompt(self) -> None:
+        message = "MainAgent -> pro-runtime: review delivery confirmation"
+        baseline = "• Working\nDone.\n\n› Find and fix a bug in @filename\n"
+        fake = FakeTmuxSend(
+            captures=[
+                f"› {message}\n",
+                "• Working\nDone.\n\n› Find and fix a bug in @filename\n",
+            ],
+            baseline_capture=baseline,
+        )
+
+        result = send_text(
+            "%8",
+            message,
+            runner=fake,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+            max_retries=0,
         )
 
         self.assertFalse(result.accepted)

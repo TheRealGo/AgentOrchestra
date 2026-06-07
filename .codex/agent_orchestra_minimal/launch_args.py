@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from functools import lru_cache
 import os
 from pathlib import Path
 import subprocess
 
+from .codex_features import run_codex_features_list
 from .tmux_targets import optional_tmux_pane
 
 
@@ -50,8 +52,15 @@ def validate_codex_args(args: Sequence[str]) -> tuple[str, ...]:
     result = tuple(args)
     expect_value_for: str | None = None
     for arg in result:
-        if arg == "--" or arg in FORBIDDEN_CODEX_ARGS:
+        if arg == "--" or _is_forbidden_boundary_arg(arg):
             raise ValueError(f"codex_args must not override runtime boundary option {arg!r}")
+        assigned_option, assigned_value = _option_assignment(arg)
+        if assigned_option:
+            if assigned_value == "" or assigned_value.startswith("-"):
+                raise ValueError(f"codex_args must not pass runtime boundary option as a value {arg!r}")
+            if assigned_option == "-c" and _is_boundary_config(assigned_value):
+                raise ValueError(f"codex_args must not override runtime boundary config {arg!r}")
+            continue
         if expect_value_for:
             if arg == "exec":
                 raise ValueError("codex_args must not request codex exec")
@@ -74,6 +83,20 @@ def validate_codex_args(args: Sequence[str]) -> tuple[str, ...]:
     return result
 
 
+def _option_assignment(arg: str) -> tuple[str | None, str | None]:
+    option, separator, value = arg.partition("=")
+    if separator and option in CODEX_OPTIONS_WITH_VALUES:
+        return option, value
+    return None, None
+
+
+def _is_forbidden_boundary_arg(arg: str) -> bool:
+    if arg in FORBIDDEN_CODEX_ARGS:
+        return True
+    option, separator, _value = arg.partition("=")
+    return bool(separator and option in FORBIDDEN_CODEX_ARGS)
+
+
 def codex_launch_argv(
     codex_binary: str,
     *,
@@ -81,7 +104,13 @@ def codex_launch_argv(
     target_project: str,
     access_roots: Sequence[str] = (),
     extra_args: Sequence[str] = (),
+    auto_enable_prevent_idle_sleep: bool | None = None,
 ) -> list[str]:
+    enable_prevent_idle_sleep = (
+        codex_supports_prevent_idle_sleep(codex_binary)
+        if auto_enable_prevent_idle_sleep is None
+        else auto_enable_prevent_idle_sleep
+    )
     argv = [
         codex_binary,
         "--profile",
@@ -99,11 +128,25 @@ def codex_launch_argv(
         "--add-dir",
         target_project,
     ]
+    if enable_prevent_idle_sleep:
+        argv.extend(["--enable", "prevent_idle_sleep"])
     for root in access_roots:
         if root != target_project:
             argv.extend(["--add-dir", root])
     argv.extend(extra_args)
     return argv
+
+
+def codex_supports_prevent_idle_sleep(codex_binary: str = "codex") -> bool:
+    if os.environ.get("AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP") == "1":
+        return False
+    return _codex_supports_prevent_idle_sleep(codex_binary)
+
+
+@lru_cache(maxsize=8)
+def _codex_supports_prevent_idle_sleep(codex_binary: str) -> bool:
+    report = run_codex_features_list(codex_binary=codex_binary)
+    return not report.failed and report.has_feature("prevent_idle_sleep")
 
 
 def editable_access_roots(target_root: Path) -> tuple[Path, ...]:

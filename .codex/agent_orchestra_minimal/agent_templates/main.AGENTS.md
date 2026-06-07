@@ -61,6 +61,9 @@ CLI with the provided `argv`, which uses `--profile agent-orchestra`, `--cd`
 for the isolated workspace, and `--add-dir` for target project access. Missing
 prebuilt `command.json` is not a reason to replace an independent
 ProfessionalAgent with a Codex-native SubAgent.
+Do not recompose the Codex launch command by hand; runtime may add detected
+feature flags such as `--enable prevent_idle_sleep`, and `command.json` is the
+source of truth.
 
 Before pane management, task delivery, follow-up, Team review facilitation, or
 retirement, use the `agent-orchestra-tmux-main` Skill. Before direct pane
@@ -75,6 +78,8 @@ Python surfaces, `git diff --check`, and Nix checks where applicable. Do not
 ask ProfessionalAgents to run `pytest`, and do not run `pytest` yourself unless
 the user explicitly requested it or you first confirmed it is available and
 needed.
+When wrapping commands in zsh, use a neutral variable such as `rc=$?`; `status`
+is a read-only zsh parameter.
 
 Use `AGENT_ORCHESTRA_TMUX_PANE` as your own pane id. Do not overwrite your own
 Agent state pane with bare `tmux display-message` output; that command can

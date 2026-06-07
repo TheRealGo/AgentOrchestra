@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +56,7 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
                 self.assertTrue((material.codex_home / "agent_orchestra_minimal" / "agent_templates" / template).is_file())
             for skill in (
                 "agent-orchestra-launch",
+                "agent-orchestra-release",
                 "agent-orchestra-task-file",
                 "agent-orchestra-team",
                 "agent-orchestra-tmux-common",
@@ -181,6 +184,46 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             auth_target = material.codex_home / "auth.json"
             self.assertEqual(auth_target.read_text(encoding="utf-8"), '{"token":"redacted"}\n')
             self.assertEqual(stat.S_IMODE(auth_target.stat().st_mode), 0o600)
+
+    def test_explicit_missing_auth_source_fails_fast(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            run_dir = root / "run"
+            fallback_codex_home = root / "fallback-codex-home"
+            fallback_codex_home.mkdir()
+            (fallback_codex_home / "auth.json").write_text('{"token":"fallback"}\n', encoding="utf-8")
+
+            with patch.dict(os.environ, {"CODEX_HOME": str(fallback_codex_home)}, clear=False):
+                with self.assertRaisesRegex(FileNotFoundError, "auth_source was not found"):
+                    prepare_launch_material(
+                        run_dir=run_dir,
+                        agent_id="pro-missing-auth",
+                        agent_kind="ProfessionalAgent",
+                        target_project=ROOT,
+                        instruction_text="Auth source instruction.",
+                        auth_source=root / "missing-auth.json",
+                    )
+
+            self.assertFalse((run_dir / "agents" / "pro-missing-auth").exists())
+
+    def test_implicit_auth_source_still_uses_codex_home_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            fallback_codex_home = root / "fallback-codex-home"
+            fallback_codex_home.mkdir()
+            (fallback_codex_home / "auth.json").write_text('{"token":"fallback"}\n', encoding="utf-8")
+
+            with patch.dict(os.environ, {"CODEX_HOME": str(fallback_codex_home)}, clear=False):
+                material = prepare_launch_material(
+                    run_dir=root / "run",
+                    agent_id="pro-fallback-auth",
+                    agent_kind="ProfessionalAgent",
+                    target_project=ROOT,
+                    instruction_text="Auth fallback instruction.",
+                )
+
+            auth_target = material.codex_home / "auth.json"
+            self.assertEqual(auth_target.read_text(encoding="utf-8"), '{"token":"fallback"}\n')
 
 
 if __name__ == "__main__":

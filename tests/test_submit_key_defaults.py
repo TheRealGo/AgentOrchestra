@@ -91,6 +91,22 @@ class SubmitKeyDefaultTests(unittest.TestCase):
                         instruction_text="Submit key instruction.",
                     )
 
+    def test_invalid_tui_submit_key_does_not_write_partial_launch_material(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "run"
+
+            with patch.dict(os.environ, {"AGENT_ORCHESTRA_TUI_SUBMIT_KEY": "C-m Space"}, clear=False):
+                with self.assertRaisesRegex(ValueError, "submit_key"):
+                    prepare_launch_material(
+                        run_dir=run_dir,
+                        agent_id="pro-invalid-submit-key",
+                        agent_kind="ProfessionalAgent",
+                        target_project=ROOT,
+                        instruction_text="Submit key instruction.",
+                    )
+
+            self.assertFalse((run_dir / "agents" / "pro-invalid-submit-key").exists())
+
     def test_tmux_send_rejects_invalid_submit_key_token(self) -> None:
         fake = FakeTmux()
 

@@ -38,6 +38,7 @@ class ChangeControlSurfaceTests(unittest.TestCase):
             "tests/**",
             "layers/**",
             "Handoff.md",
+            "E2E.md",
             "README.md",
             "README.ja.md",
             ".gitignore",
@@ -48,10 +49,10 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         ):
             self.assertIn(phrase, workflow)
         self.assertIn(
-            "git diff --check -- .codex tests layers Handoff.md README.md README.ja.md SPEC.md .gitignore flake.nix",
+            "git diff --check -- .codex tests layers Handoff.md E2E.md README.md README.ja.md SPEC.md .gitignore flake.nix",
             workflow,
         )
-        self.assertNotIn("E2E.md", workflow)
+        self.assertNotIn("pytest", workflow)
 
     def test_pr_template_requires_spec_e2e_update_for_runtime_changes(self) -> None:
         template = (ROOT / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
@@ -60,10 +61,11 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertIn("path-form Nix checks pass", template)
         self.assertIn("nix flake check --no-build path:$PWD", template)
         self.assertIn("nix build path:$PWD#checks.$system.source-contract", template)
+        self.assertIn("standard Python runner remains `unittest`", template)
+        self.assertIn("`pytest` is not substituted", template)
         self.assertIn("`python3 -m py_compile` passes", template)
-        self.assertIn("runtime, instruction, or contributor-doc changes", template)
-        self.assertIn("`git diff --check -- .codex tests layers Handoff.md README.md README.ja.md SPEC.md .gitignore flake.nix", template)
-        self.assertNotIn("E2E.md", template)
+        self.assertIn("runtime, instruction, evidence, or contributor-doc changes", template)
+        self.assertIn("`git diff --check -- .codex tests layers Handoff.md E2E.md README.md README.ja.md SPEC.md .gitignore flake.nix", template)
         self.assertIn("`SPEC.md` and runtime evidence are updated", template)
         self.assertIn("Change-unit evidence is recorded", template)
         self.assertIn("owner_dri", template)
@@ -72,6 +74,16 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertIn("ProfessionalAgent sufficiency is recorded", template)
         self.assertIn("Final improvement-candidate sweep evidence is recorded", template)
         self.assertIn("ProfessionalAgent recommendations, skipped verification", template)
+        for disposition in (
+            "integrated",
+            "rejected",
+            "deferred",
+            "blocked",
+            "out-of-scope",
+            "`needs_user`",
+            "[Backlog]",
+        ):
+            self.assertIn(disposition, template)
         self.assertIn("Shared task file finalization evidence is recorded", template)
         self.assertIn("every `[Candidates]` item has a completed disposition", template)
         self.assertIn("deterministic finalization blocker list is empty", template)
@@ -91,16 +103,119 @@ class ChangeControlSurfaceTests(unittest.TestCase):
     def test_handoff_current_verification_names_latest_check_result_first(self) -> None:
         handoff = (ROOT / "Handoff.md").read_text(encoding="utf-8")
 
+        pr_disposition_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 PR finalization disposition contract guard"
+        )
+        task_file_doctor_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 task-file doctor finalization guard"
+        )
+        e2e_gate_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 E2E evidence CI gate guard"
+        )
+        feature_parser_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 Codex feature parser absent-state guard"
+        )
+        issue7_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 Issue #7 E2E current-test evidence guard"
+        )
+        readme_contract_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 README verification contract guard"
+        )
+        path_form_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 path-form README evidence guard"
+        )
+        prevent_idle_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 prevent-idle-sleep launch guard"
+        )
+        runner_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 unittest runner guard"
+        )
+        current_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-08 SPEC alignment sweep"
+        )
         latest_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-07 tmux delivery baseline guard"
+        )
+        release_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-07 QA/release evidence consistency pass"
+        )
+        tmux_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-07 tmux delivery confirmation fix"
+        )
+        qa_index = handoff.index(
+            "Latest generated-copy checks after the 2026-06-07 QA evidence refresh"
+        )
+        previous_index = handoff.index(
             "Latest generated-copy checks after the 2026-05-27 launch profile and release-skill boundary pass"
         )
-        previous_index = handoff.index("Latest generated-copy checks after the 2026-05-27 tmux probe split")
         earlier_index = handoff.index("Latest generated-copy checks after the 2026-05-27 README docs gate")
         handoff_normalized = " ".join(handoff.split())
 
-        self.assertLess(latest_index, previous_index)
-        self.assertLess(latest_index, earlier_index)
-        self.assertIn("launch profile and release-skill boundary pass", handoff_normalized)
+        ordered_indexes = (
+            pr_disposition_index,
+            task_file_doctor_index,
+            e2e_gate_index,
+            feature_parser_index,
+            issue7_index,
+            readme_contract_index,
+            path_form_index,
+            prevent_idle_index,
+            runner_index,
+            current_index,
+            latest_index,
+            release_index,
+            tmux_index,
+            qa_index,
+            previous_index,
+            earlier_index,
+        )
+        for left, right in zip(ordered_indexes, ordered_indexes[1:]):
+            self.assertLess(left, right)
+        for phrase in (
+            "PR finalization disposition contract guard",
+            "executable change-control test did not assert the terminal disposition vocabulary",
+            "Change-unit evidence is recorded",
+            "PR finalization disposition contract candidate",
+            "task-file doctor finalization guard",
+            "could not directly report deterministic task-file finalization blockers",
+            "`doctor --task-file`",
+            "task-file doctor finalization guard candidate",
+            "E2E evidence CI gate guard",
+            "source-contract workflow path filters and whitespace check excluded `E2E.md`",
+            "evidence-only E2E updates bypass the CI/release evidence gate",
+            "E2E evidence CI gate candidate",
+            "Codex feature parser absent-state guard",
+            "could be parsed as `present`",
+            "feature parser absent-state guard candidate",
+            "Issue #7 E2E current-test evidence guard",
+            "removed Issue #7 acceptance modules",
+            "tests/test_continuous_improvement_contract.py",
+            "Issue #7 E2E current-test evidence guard candidate",
+            "README verification contract guard",
+            "path-form Nix line wrapping",
+            "not delivered because the peer pane remained busy",
+            "README verification contract guard candidate",
+            "path-form README evidence guard",
+            "README contributor verification only showed repository-root Nix commands",
+            "path-form README evidence candidate",
+            "prevent-idle-sleep launch guard",
+            "automatic Codex `prevent_idle_sleep` launch behavior",
+            "release-evidence freshness candidate",
+            "`.codex/agent_orchestra_minimal/codex_features.py`",
+            "unittest runner guard",
+            "`pytest`, which is not a project dependency",
+            "passed, 245 tests",
+            "SPEC alignment sweep",
+            "tmux peer-prompt guard candidate",
+            "`unittest` release-evidence guard candidate",
+            "path-form `nix flake check",
+            "passed, 244 tests",
+            "tmux delivery baseline guard",
+            "QA/release evidence consistency pass",
+            "tmux delivery confirmation fix",
+            "QA evidence refresh",
+        ):
+            self.assertIn(phrase, handoff_normalized)
         self.assertNotIn("Latest root checks after accepting the current generated-copy proposal", handoff)
 
     def test_handoff_separates_residual_checks_from_historical_followup_evidence(self) -> None:
@@ -114,34 +229,6 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertLess(remaining_index, historical_index)
         self.assertLess(historical_index, liveness_index)
         self.assertLess(historical_index, wording_index)
-
-    def test_handoff_latest_release_evidence_records_spec_traceability(self) -> None:
-        handoff = (ROOT / "Handoff.md").read_text(encoding="utf-8")
-        latest_start = handoff.index(
-            "Latest generated-copy checks after the 2026-05-27 launch profile and release-skill boundary pass"
-        )
-        earlier_start = handoff.index("Latest generated-copy checks after the 2026-05-27 tmux probe split")
-        latest_section = handoff[latest_start:earlier_start]
-        latest_normalized = " ".join(latest_section.split())
-
-        for phrase in (
-            "SPEC sections: Instruction Isolation",
-            "Skills",
-            "Release Evidence And SPEC Traceability",
-            "owner_dri/reviewers: MainAgent coordinated this pass with",
-            "`pro-runtime-16` and `pro-docs-25` ProfessionalAgent review panes",
-            "affected scope: `.codex/agent_orchestra_minimal/launch_args.py`",
-            ".codex/agent_orchestra_minimal/launch_io.py",
-            ".codex/skills/agent-orchestra-launch/SKILL.md",
-            "candidate-ledger disposition: integrated",
-            "`--profile` launch contract",
-            "private launch-material permissions",
-            "release Skill boundary",
-            "`python3 -m unittest discover -s tests` passed, 215 tests",
-            "deterministic finalization blockers: none known",
-            "blocking objections: none known",
-        ):
-            self.assertIn(phrase, latest_normalized)
 
 
 if __name__ == "__main__":

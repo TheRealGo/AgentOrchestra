@@ -226,6 +226,20 @@ action=resume_existing_work_after_resync
         ):
             self.assertIn(phrase, readme_ja)
 
+    def test_issue7_e2e_evidence_names_current_contract_tests(self) -> None:
+        e2e = (ROOT / "E2E.md").read_text(encoding="utf-8")
+
+        self.assertIn("tests/test_continuous_improvement_contract.py", e2e)
+        self.assertIn(
+            "python3 -m unittest tests.test_continuous_improvement_contract",
+            e2e,
+        )
+        self.assertIn("tests.test_stop_hook_and_tmux", e2e)
+        self.assertIn("tests.test_skill_boundary_contract", e2e)
+        self.assertNotIn("tests/test_wake_payload_contract.py", e2e)
+        self.assertNotIn("tests.test_wake_payload_contract", e2e)
+        self.assertNotIn("tests.test_e2e_issue7_acceptance", e2e)
+
 
 if __name__ == "__main__":
     unittest.main()

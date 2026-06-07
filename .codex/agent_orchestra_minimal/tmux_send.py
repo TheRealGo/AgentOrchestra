@@ -7,9 +7,15 @@ from pathlib import Path
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from agent_orchestra_minimal.tmux_delivery import DEFAULT_SUBMIT_KEY, DeliveryResult, Runner, send_buffered_text
+    from agent_orchestra_minimal.tmux_delivery import (
+        DEFAULT_SUBMIT_KEY,
+        MAX_POLLS_PER_ATTEMPT,
+        DeliveryResult,
+        Runner,
+        send_buffered_text,
+    )
 else:
-    from .tmux_delivery import DEFAULT_SUBMIT_KEY, DeliveryResult, Runner, send_buffered_text
+    from .tmux_delivery import DEFAULT_SUBMIT_KEY, MAX_POLLS_PER_ATTEMPT, DeliveryResult, Runner, send_buffered_text
 
 
 BUFFER_PREFIX = "agent-orchestra-msg"
@@ -69,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _effective_cli_polls_per_attempt(value: int) -> int:
-    return max(value, MIN_CLI_POLLS_PER_ATTEMPT)
+    return min(max(value, MIN_CLI_POLLS_PER_ATTEMPT), MAX_POLLS_PER_ATTEMPT)
 
 
 if __name__ == "__main__":

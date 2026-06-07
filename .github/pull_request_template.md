@@ -1,8 +1,9 @@
 ## AgentOrchestra Change Control
 
 - [ ] For AgentOrchestra runtime or instruction changes, `python3 -m unittest discover -s tests` passes.
+- [ ] The standard Python runner remains `unittest`; `pytest` is not substituted unless a change explicitly adds and justifies that dependency.
 - [ ] For AgentOrchestra runtime Python changes, `python3 -m py_compile` passes for the affected runtime surfaces.
-- [ ] For AgentOrchestra runtime, instruction, or contributor-doc changes, `git diff --check -- .codex tests layers Handoff.md README.md README.ja.md SPEC.md .gitignore flake.nix flake.lock .github` passes.
+- [ ] For AgentOrchestra runtime, instruction, evidence, or contributor-doc changes, `git diff --check -- .codex tests layers Handoff.md E2E.md README.md README.ja.md SPEC.md .gitignore flake.nix flake.lock .github` passes.
 - [ ] For AgentOrchestra runtime or instruction changes, `nix flake check --no-build` passes from the repository root, or the exception is documented.
 - [ ] For AgentOrchestra runtime or instruction changes, `nix build .#checks.x86_64-linux.source-contract` passes, or the exception is documented.
 - [ ] For generated-copy or untracked-fixture verification, path-form Nix checks pass, for example `nix flake check --no-build path:$PWD` and `nix build path:$PWD#checks.$system.source-contract`, or the exception is documented.

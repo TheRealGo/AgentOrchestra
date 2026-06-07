@@ -141,6 +141,14 @@ nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --tui-transport
 ```
 
+To validate a shared task file before deciding a run is quiet:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --task-file /private/tmp/agent-orchestra/.../tasks.ini
+```
+
 To include Codex CLI's own machine-readable diagnostics:
 
 ```sh
@@ -148,6 +156,21 @@ nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
   --codex-doctor
 ```
+
+`--codex-doctor` waits up to 60 seconds by default because recent Codex CLI
+versions include broader local inventory checks. To inspect the Codex feature
+flags AgentOrchestra relies on:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --codex-features
+```
+
+When `codex features list` reports `prevent_idle_sleep`, AgentOrchestra adds
+`--enable prevent_idle_sleep` to Agent launches so long-running teams are less
+likely to pause during system idle sleep. Set
+`AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` to opt out.
 
 ## Updating
 
@@ -182,6 +205,14 @@ git diff --check
 nix flake check --no-build
 nix build .#checks.x86_64-linux.source-contract
 ```
+
+`unittest` is the standard Python test runner for this repository. Do not
+substitute `pytest` unless a task explicitly adds and justifies that dependency.
+
+For generated-copy or untracked-fixture verification, use path-form Nix so the
+checked tree is the visible working directory, for example `nix flake check
+--no-build path:$PWD` and
+`nix build path:$PWD#checks.$system.source-contract`.
 
 Use the system-specific check name for your platform when needed, such as
 `aarch64-darwin`, `x86_64-darwin`, `aarch64-linux`, or `x86_64-linux`.

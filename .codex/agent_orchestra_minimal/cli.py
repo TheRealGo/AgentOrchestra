@@ -41,8 +41,17 @@ def main(argv: list[str] | None = None) -> int:
     doctor.add_argument(
         "--codex-doctor-timeout-seconds",
         type=float,
-        default=20.0,
+        default=60.0,
         help="maximum time to wait for codex doctor --json",
+    )
+    doctor.add_argument(
+        "--codex-features",
+        action="store_true",
+        help="summarize Codex CLI feature flags relevant to AgentOrchestra",
+    )
+    doctor.add_argument(
+        "--task-file",
+        help="validate a shared task file and report deterministic finalization blockers",
     )
 
     args = parser.parse_args(argv)

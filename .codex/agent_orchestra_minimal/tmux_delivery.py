@@ -98,6 +98,7 @@ def send_buffered_text(
                 state = _delivery_state(
                     capture,
                     text,
+                    baseline_capture=baseline_capture if require_fresh_capture else "",
                     baseline_probe_index=baseline_probe_index,
                     baseline_prompt_index=baseline_prompt_index,
                     fresh_probe_was_seen=fresh_probe_was_seen,
@@ -162,6 +163,7 @@ def _delivery_state(
     capture: str,
     text: str,
     *,
+    baseline_capture: str = "",
     baseline_probe_index: int = -1,
     baseline_prompt_index: int = -1,
     fresh_probe_was_seen: bool = False,
@@ -182,7 +184,9 @@ def _delivery_state(
         tail = "\n".join(lines[prompt_index + 1 :])
         if looks_queued(tail):
             return "queued"
-        if fresh_probe_was_seen and not looks_queued(capture):
+        if capture == baseline_capture:
+            return "uncertain"
+        if fresh_probe_was_seen and not looks_queued(capture) and looks_started(capture):
             return "started"
         if (
             baseline_prompt_index != -1

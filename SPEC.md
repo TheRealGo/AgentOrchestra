@@ -400,6 +400,9 @@ The Codex CLI launch itself should use first-class Codex options:
   boundary overrides and must be rejected from extra Codex args;
 - approval policy, sandbox mode, hooks enablement, and network access are
   passed as first-class Codex options or `-c` overrides where possible;
+- if `codex features list` reports `prevent_idle_sleep`, the runtime adds
+  `--enable prevent_idle_sleep` unless
+  `AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` is set;
 - `HOME` and `CODEX_HOME` are set per Agent.
 
 MainAgent startup must not inject a synthetic first user prompt. The generated
@@ -720,6 +723,8 @@ Documents isolated Codex CLI launch guidance:
 - `env.json`, `env.sh`, and `command.json`;
 - `--profile agent-orchestra`;
 - `--ask-for-approval`, `--sandbox`, `--enable`, and `-c` config overrides;
+- automatic `--enable prevent_idle_sleep` when the Codex feature exists, with
+  `AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` as the opt-out;
 - `--cd` isolated workspace;
 - `--add-dir` target project access;
 - no `codex exec` ProfessionalAgents.

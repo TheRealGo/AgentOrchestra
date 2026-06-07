@@ -46,7 +46,10 @@ repeated checks are only delivery confirmation, not supervision.
 
 If the helper exits non-zero, do not continue as if the message was delivered.
 Capture the target pane, verify the pane id and TUI state, and report or recover
-the communication failure explicitly.
+the communication failure explicitly. If the target Agent is busy and the work
+can continue asynchronously, record the attempted consultation or review request
+in the shared task file, scoped report, or decision log with `not delivered`
+evidence instead of treating it as a blocking review.
 
 Submit Codex TUI input with `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`. Do not
 prepend `Space`: extra characters become part of the message and can change

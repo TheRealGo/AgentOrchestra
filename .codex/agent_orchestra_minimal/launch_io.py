@@ -18,6 +18,7 @@ RUNTIME_FILES = (
     "candidate_ledger.py",
     "cli.py",
     "codex_config.py",
+    "codex_features.py",
     "doctor.py",
     "launch_args.py",
     "launch_io.py",
@@ -36,6 +37,7 @@ RUNTIME_FILES = (
 RUNTIME_DIRS = ("agent_templates",)
 SKILLS = (
     "agent-orchestra-launch",
+    "agent-orchestra-release",
     "agent-orchestra-task-file",
     "agent-orchestra-team",
     "agent-orchestra-tmux-common",
@@ -79,7 +81,14 @@ def install_codex_material(codex_home: Path, workspace: Path, config_path: Path)
 
 
 def install_auth_material(codex_home: Path, auth_source: str | Path | None) -> None:
-    candidates = [Path(auth_source).expanduser()] if auth_source else []
+    if auth_source:
+        source = validate_auth_source(auth_source)
+        target = codex_home / "auth.json"
+        shutil.copy2(source, target)
+        target.chmod(PRIVATE_FILE_MODE)
+        return
+
+    candidates: list[Path] = []
     if current_codex_home := os.environ.get("CODEX_HOME"):
         candidates.append(Path(current_codex_home).expanduser() / "auth.json")
     candidates.append(Path.home() / ".codex" / "auth.json")
@@ -89,6 +98,15 @@ def install_auth_material(codex_home: Path, auth_source: str | Path | None) -> N
     target = codex_home / "auth.json"
     shutil.copy2(source, target)
     target.chmod(PRIVATE_FILE_MODE)
+
+
+def validate_auth_source(auth_source: str | Path | None) -> Path | None:
+    if not auth_source:
+        return None
+    source = Path(auth_source).expanduser()
+    if not source.is_file():
+        raise FileNotFoundError(f"auth_source was not found: {source}")
+    return source
 
 
 def ensure_target_link(link_path: Path, target: Path) -> None:

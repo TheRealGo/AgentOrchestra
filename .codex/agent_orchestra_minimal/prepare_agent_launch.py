@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent_orchestra_minimal.launch_material import prepare_launch_material
+from agent_orchestra_minimal.codex_config import codex_config
 from agent_orchestra_minimal.tmux_delivery import normalize_submit_key
 
 
@@ -51,6 +52,9 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
         workspace = root / "workspace"
         for path in (home, codex_home, workspace):
             path.mkdir(parents=True, exist_ok=True)
+        config_path = codex_home / "agent-orchestra.config.toml"
+        config_path.write_text(codex_config(workspace, config_path), encoding="utf-8")
+        config_path.chmod(0o600)
         _copy_auth(codex_home)
 
         launch = (
@@ -58,6 +62,8 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
             + _quote_command(
                 [
                     codex_binary,
+                    "--profile",
+                    "agent-orchestra",
                     "--no-alt-screen",
                     "--ask-for-approval",
                     "never",
@@ -79,16 +85,17 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
             if not pane:
                 return ProbeResult(False, "could not find Codex TUI pane")
 
-            _run(["tmux", "send-keys", "-t", pane, key])
-            time.sleep(1.0)
-            _run(["tmux", "load-buffer", "-b", session, "-"], input="/exit")
-            _run(["tmux", "paste-buffer", "-t", pane, "-b", session])
-            _run(["tmux", "delete-buffer", "-b", session])
-            _run(["tmux", "send-keys", "-t", pane, key])
+            capture = _run(["tmux", "capture-pane", "-t", pane, "-p", "-S", "-80"]).stdout
+            if "Do you trust the contents of this directory?" in capture:
+                _run(["tmux", "send-keys", "-t", pane, key])
+                time.sleep(1.0)
+            _run(["tmux", "send-keys", "-t", pane, "/exit", key])
 
-            for _ in range(24):
+            for poll_index in range(24):
                 if _run(["tmux", "has-session", "-t", session]).returncode != 0:
                     return ProbeResult(True, f"Codex TUI accepted /exit via {key}")
+                if poll_index in {3, 7, 11}:
+                    _run(["tmux", "send-keys", "-t", pane, key])
                 time.sleep(0.5)
             capture = _run(["tmux", "capture-pane", "-t", pane, "-p", "-S", "-80"]).stdout
             return ProbeResult(False, f"Codex TUI did not close after /exit {key}", capture[-1200:])

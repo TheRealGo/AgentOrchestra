@@ -20,6 +20,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
             "agent_orchestra_minimal/agent_templates/professional.AGENTS.md",
             "agent_orchestra_minimal/cli.py",
             "agent_orchestra_minimal/codex_config.py",
+            "agent_orchestra_minimal/codex_features.py",
             "agent_orchestra_minimal/doctor.py",
             "agent_orchestra_minimal/launch_material.py",
             "agent_orchestra_minimal/launch_io.py",
@@ -98,10 +99,10 @@ class RuntimeBoundaryTests(unittest.TestCase):
 
         self.assertIn("generated `workspace/AGENTS.md` is the Agent behavior surface", normalized)
         self.assertIn("Layer `INSTRUCTIONS.md` files are specialist perspectives only", normalized)
-        self.assertIn("--profile agent-orchestra", text)
-        self.assertIn("--ask-for-approval never", text)
-        self.assertIn("--sandbox workspace-write", text)
-        self.assertIn("--enable hooks", text)
+        self.assertIn("Do not recompose the Codex launch command by hand", normalized)
+        self.assertIn("`command.json` is the runtime boundary for the full argv", normalized)
+        self.assertIn('Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json")', text)
+        self.assertIn("--enable prevent_idle_sleep", text)
         self.assertIn("--cd", text)
         self.assertIn("--add-dir", text)
         self.assertIn("Do not create wrapper scripts", text)

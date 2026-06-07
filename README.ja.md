@@ -142,6 +142,14 @@ nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --tui-transport
 ```
 
+run が quiet か判断する前に shared task file を検査する場合:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --task-file /private/tmp/agent-orchestra/.../tasks.ini
+```
+
 Codex CLI 自体の machine-readable diagnostics も確認する場合:
 
 ```sh
@@ -149,6 +157,21 @@ nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
   --codex-doctor
 ```
+
+`--codex-doctor` の既定 timeout は 60 秒です。最近の Codex CLI は local
+inventory check が広がっているためです。AgentOrchestra が使う Codex
+feature flag を確認する場合:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --codex-features
+```
+
+`codex features list` に `prevent_idle_sleep` がある場合、AgentOrchestra は
+長時間 AgentTeam が system idle sleep で止まりにくいように Agent 起動へ
+`--enable prevent_idle_sleep` を追加します。無効化するには
+`AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` を設定します。
 
 ## 更新
 
@@ -181,6 +204,13 @@ git diff --check
 nix flake check --no-build
 nix build .#checks.x86_64-linux.source-contract
 ```
+
+このリポジトリの標準 Python テストランナーは `unittest` です。タスクで依存追加と
+理由が明示されない限り、`pytest` に置き換えないでください。
+
+generated-copy や未追跡 fixture を検証するときは、見えている作業ツリーをそのまま
+検査するために path-form Nix を使います。例: `nix flake check --no-build
+path:$PWD` と `nix build path:$PWD#checks.$system.source-contract`。
 
 環境に合わせて、`x86_64-linux` は `aarch64-darwin`、`x86_64-darwin`、
 `aarch64-linux`、`x86_64-linux` などに置き換えてください。

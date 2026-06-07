@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 MESSAGE_PROBE_CHARS = 120
 MIN_MESSAGE_PROBE_CHARS = 56
@@ -11,6 +13,7 @@ QUEUE_MARKERS = (
     "Messages to be submitted after next tool call",
 )
 AGENT_MESSAGE_ROLES = ("MainAgent", "ProfessionalAgent")
+AGENT_ID_PROMPT = re.compile(r"^(?:main|mainagent|pro-[A-Za-z0-9_.-]+)(?::|\s|$)")
 
 
 def last_probe_index(lines: list[str], text: str) -> int:
@@ -58,7 +61,7 @@ def line_has_agent_message_prompt(line: str) -> bool:
     if not stripped.startswith(("›", ">")):
         return False
     message = stripped[1:].lstrip()
-    return any(
+    return AGENT_ID_PROMPT.match(message) is not None or any(
         message == role
         or message.startswith(f"{role}:")
         or message.startswith(f"{role} ")

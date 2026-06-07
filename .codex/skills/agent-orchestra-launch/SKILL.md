@@ -38,12 +38,17 @@ workspace, and target access. The generated profile is kept minimal for project
 trust and Stop Hook registration. Do not override Codex TUI keymaps from
 agent-orchestra; tmux delivery uses `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`.
 
-```sh
-codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks --cd "$ISOLATED_WORKSPACE" --add-dir "$TARGET_PROJECT"
-```
+Do not recompose the Codex launch command by hand. The generated
+`command.json` is the runtime boundary for the full argv, including any
+detected feature flags such as `--enable prevent_idle_sleep`.
 
-`--cd` points at the isolated workspace with generated `AGENTS.md`.
-`--add-dir` grants target project access as data/workspace material.
+In that argv, `--cd` points at the isolated workspace with generated
+`AGENTS.md`; `--add-dir` grants target project access as data/workspace
+material.
+If `codex features list` reports `prevent_idle_sleep`, runtime may also add
+`--enable prevent_idle_sleep`; set
+`AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` before preparing launch material
+to opt out.
 When the requested target is nested inside a Git worktree, runtime may add the
 worktree root as an additional `--add-dir`; Agents should use
 `$AGENT_ORCHESTRA_EDIT_ROOT` for git status, patching, and verification while
@@ -84,24 +89,23 @@ template with the selected layer perspective into the isolated
 Read `env.json` and `command.json`, then launch the `argv` shown in
 `command.json` with one short command in the target shell pane. Avoid pasting
 many `export` lines; it clutters the visible Agent pane and makes failures hard
-to read.
+to read. Do not type out `codex --profile ...` yourself; that can drop runtime
+feature flags or future launch-boundary changes.
 
 Preferred pattern inside the target shell pane:
 
 ```sh
 AGENT_DIR=/path/from/helper/output
 . "$AGENT_DIR/env.sh"
-codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks \
-  -c 'sandbox_workspace_write.network_access=true' \
-  --cd "$AGENT_DIR/workspace" --add-dir "$AGENT_ORCHESTRA_TARGET_PROJECT"
+"$AGENT_ORCHESTRA_PYTHON" -c 'import json, os; from pathlib import Path; cmd=json.loads(Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json").read_text()); os.chdir(cmd["cwd"]); os.execvp(cmd["argv"][0], cmd["argv"])'
 ```
 
 When sending that launch command through `tmux send-keys`, quote the whole shell
-command with single quotes so `$AGENT_DIR` and `$AGENT_ORCHESTRA_TARGET_PROJECT`
-expand in the target pane, not in MainAgent's shell:
+command with single quotes so `$AGENT_DIR` expands in the target pane, not in
+MainAgent's shell:
 
 ```sh
-tmux send-keys -t "$PANE" 'AGENT_DIR=/path/from/helper/output; . "$AGENT_DIR/env.sh"; codex --profile agent-orchestra --ask-for-approval never --sandbox workspace-write --enable hooks -c sandbox_workspace_write.network_access=true --cd "$AGENT_DIR/workspace" --add-dir "$AGENT_ORCHESTRA_TARGET_PROJECT"' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
+tmux send-keys -t "$PANE" 'AGENT_DIR=/path/from/helper/output; . "$AGENT_DIR/env.sh"; "$AGENT_ORCHESTRA_PYTHON" -c '"'"'import json, os; from pathlib import Path; cmd=json.loads(Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json").read_text()); os.chdir(cmd["cwd"]); os.execvp(cmd["argv"][0], cmd["argv"])'"'"'' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
 ```
 
 After launch, capture the pane and confirm paths did not collapse to `/env.sh`

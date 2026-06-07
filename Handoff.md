@@ -51,6 +51,521 @@
 
 ## Current Verification
 
+- Latest AgentTeam sweep after the 2026-06-08 live SPEC mirror verification pass:
+  - 2026-06-08 MainAgent coordinated a live AgentTeam sweep for the user goal
+    to read `SPEC.md` and improve `AgentOrchestra/` until no in-scope
+    improvements remain. The smallest sufficient team was MainAgent plus
+    `pro-runtime-08` for backend/runtime gap analysis and `pro-quality-15` for
+    QA/release-evidence review.
+  - SPEC sections: Team Execution Sufficiency; Shared Task File; Release
+    Evidence And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned coordination and final integration
+    evidence; `pro-runtime-08` reviewed runtime implementation gaps and
+    generated-copy drift; `pro-quality-15` reviewed launch, task-state,
+    tmux-delivery, and release-evidence contracts. Both ProfessionalAgent
+    task deliveries were accepted by `agent_orchestra_minimal.tmux_send`.
+  - affected scope: `Handoff.md` and
+    `tests/test_handoff_release_evidence.py`; runtime source and
+    `AgentOrchestra/` mirror content were inspected but no runtime patch was
+    warranted by the evidence.
+  - required checks run in this cycle: `python3 -m unittest discover -s tests`
+    passed, 257 tests; `python3 -m py_compile` over
+    `.codex/agent_orchestra_minimal/*.py` passed; root-vs-`AgentOrchestra/`
+    mirror comparisons for runtime, tests, `SPEC.md`, README files,
+    `Handoff.md`, PR template, and workflow showed no drift except ignored
+    `__pycache__`; `pro-quality-15` reported `nix flake check --no-build
+    path:$PWD` passed and `nix build
+    path:$PWD#checks.$system.source-contract --no-link` passed.
+  - candidate-ledger disposition: integrated for the live SPEC mirror
+    verification evidence candidate; evidence: this handoff entry,
+    `tests/test_handoff_release_evidence.py`, accepted tmux delivery logs for
+    `pro-runtime-08` and `pro-quality-15`, and the full unittest output.
+  - deterministic finalization blockers for this scoped sweep: none known
+    after full verification and mirror consistency checks.
+  - blocking objections: none known at the time this evidence was recorded.
+- Latest implementation follow-up after the 2026-06-08 safe equals-form extra-arg sweep:
+  - 2026-06-08 MainAgent review found one runtime ergonomics candidate in the
+    `codex_args` boundary validator: unsafe equals-form runtime overrides such
+    as `--profile=agent-orchestra`, `--enable=prevent_idle_sleep`, `--cd=...`,
+    and `--add-dir=...` are already rejected, but safe value options such as
+    `--model=gpt-5.5`, `-m=gpt-5.5`, and
+    `-c=model_reasoning_effort=high` should be accepted just like their split
+    forms. This was not a safety hole, but it was an in-scope runtime usability
+    improvement candidate.
+  - SPEC sections: Instruction Isolation; Launch Skill; Release Evidence And
+    SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent identified the candidate during the
+    continuous improvement sweep. Runtime implementation edit was attempted in
+    the isolated session but deferred because root `.codex/` was read-only; the
+    follow-up implementation was applied in the writable root after E2E exit.
+  - affected scope: `.codex/agent_orchestra_minimal/launch_args.py`
+    and `tests/test_launch_args.py`.
+  - required checks run after the follow-up patch: targeted
+    `python3 -m unittest tests.test_launch_args
+    tests.test_handoff_release_evidence` passed; full verification is recorded
+    in the improvement-cycle runner output.
+  - candidate-ledger disposition: integrated for the safe equals-form
+    `codex_args` candidate; evidence: this handoff entry and
+    `tests/test_launch_args.py`.
+  - deterministic finalization blockers for this scoped follow-up: none known.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 PR finalization disposition contract guard:
+  - 2026-06-08 Layer25 documentation/release-evidence review found that the
+    PR template already required final improvement-candidate sweep evidence,
+    but the executable change-control test did not assert the terminal
+    disposition vocabulary (`integrated`, `rejected`, `deferred`, `blocked`,
+    `out-of-scope`, `needs_user`, or added to `[Backlog]`) together with the
+    blocking-objection evidence surface. Change-unit evidence is recorded
+    only when this finalization vocabulary and objection evidence stay visible
+    in the PR checklist contract.
+  - SPEC sections: Release Evidence And SPEC Traceability; Completion
+    Criteria; Shared Task File.
+  - owner_dri/reviewers: `pro-docs` owned this documentation contract guard;
+    peer consultation with `pro-runtime` was not required because the change is
+    limited to PR-template evidence assertions and handoff traceability, with
+    no runtime behavior change.
+  - affected scope: `Handoff.md` and `tests/test_change_control_surface.py`.
+  - required checks after the patch: targeted `python3 -m unittest
+    tests.test_change_control_surface` passed; scoped whitespace check
+    `git diff --check -- AgentOrchestra` passed.
+  - candidate-ledger disposition: integrated for the PR finalization
+    disposition contract candidate; evidence: this handoff entry and
+    `tests/test_change_control_surface.py`.
+  - deterministic finalization blockers: none known for this scoped
+    documentation contract guard after targeted verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 task-file doctor finalization guard:
+  - 2026-06-08 MainAgent review found that the shared task file is the SPEC
+    source of truth for liveness and quiet completion, but `doctor` could only
+    check environment/Codex prerequisites and could not directly report
+    deterministic task-file finalization blockers before an operator accepted a
+    run as quiet.
+  - SPEC sections: Shared Task File; Hook-Driven Re-kick; Release Evidence And
+    SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned this runtime/QA guard. `pro-runtime-16`
+    and `pro-qa-15` independently reviewed adjacent SPEC/runtime and
+    CI/release surfaces in the same cycle; no blocking objection was raised.
+  - affected scope: `.codex/agent_orchestra_minimal/doctor.py`,
+    `.codex/agent_orchestra_minimal/cli.py`, `README.md`, `README.ja.md`,
+    `Handoff.md`, and `tests/test_codex_config_contract.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_codex_config_contract tests.test_readme_verification_contract`
+    passed, 18 tests; `python3 -m py_compile
+    .codex/agent_orchestra_minimal/doctor.py
+    .codex/agent_orchestra_minimal/cli.py
+    tests/test_codex_config_contract.py` passed; `python3 -m unittest discover
+    -s tests` passed, 254 tests; `find .codex/agent_orchestra_minimal
+    .codex/hooks tests -name '*.py' -print0 | xargs -0 python3 -m py_compile`
+    passed; scoped whitespace check passed; path-form `nix flake check
+    --no-build path:$PWD` passed from `AgentOrchestra/`.
+  - candidate-ledger disposition: integrated for the task-file doctor
+    finalization guard candidate; evidence: this handoff entry,
+    `doctor --task-file`, and `tests/test_codex_config_contract.py`.
+  - deterministic finalization blockers: none known for this scoped guard after
+    full verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 E2E evidence CI gate guard:
+  - 2026-06-08 Layer15 QA/change-control review found that `E2E.md`
+    is part of SPEC completion evidence and PR residual-risk evidence, but the
+    current source-contract workflow path filters and whitespace check excluded
+    `E2E.md`. That let evidence-only E2E updates bypass the CI/release
+    evidence gate even though an older E2E run had accepted this control.
+  - SPEC sections: Development Process; Release Evidence And SPEC
+    Traceability; Completion Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned this QA/release guard. Peer
+    consultation with `pro-runtime-16` was attempted through tmux after the
+    patch, but delivery was not accepted because the peer pane remained busy;
+    no runtime approval is claimed. The change is a narrow CI evidence-surface
+    regression fix, mirrors previously accepted E2E evidence, and changes no
+    runtime behavior.
+  - affected scope: `.github/workflows/agent-orchestra-source-contract.yml`,
+    `.github/pull_request_template.md`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_change_control_surface` passed, 5 tests; `python3 -m unittest
+    tests.test_change_control_surface tests.test_handoff_release_evidence`
+    passed, 10 tests; `python3 -m unittest discover -s tests` passed, 254
+    tests; `find .codex/agent_orchestra_minimal .codex/hooks tests -name
+    '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed from the parent repo; path-form `nix
+    flake check --no-build path:$PWD` passed from `AgentOrchestra/`;
+    `nix build path:$PWD#checks.aarch64-darwin.source-contract --no-link`
+    passed.
+  - candidate-ledger disposition: integrated for the E2E evidence CI gate
+    candidate; evidence: this handoff entry, workflow path filters, PR
+    checklist, and `tests/test_change_control_surface.py`.
+  - deterministic finalization blockers: none known for this scoped QA guard
+    after targeted verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 Codex feature parser absent-state guard:
+  - 2026-06-08 Layer16 runtime review found that `codex features list` prose
+    such as `prevent_idle_sleep is not supported`, `prevent_idle_sleep
+    unavailable`, or `unknown feature prevent_idle_sleep` could be parsed as
+    `present`, causing the launcher to add `--enable prevent_idle_sleep` even
+    when the feature was explicitly unusable.
+  - 2026-06-08 MainAgent runtime review found that user-supplied Codex extra
+    args rejected boundary overrides in split-token form, but the ignored public
+    copy also needed to reject equals-form runtime boundary overrides such as
+    `--profile=agent-orchestra`, `--enable=prevent_idle_sleep`, `--cd=...`,
+    and `--add-dir=...`.
+  - SPEC sections: Instruction Isolation; Skills; Release Evidence And SPEC
+    Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent identified the safety edge case;
+    `pro-runtime-spec` independently confirmed it as a runtime-contract gap.
+    The initial tmux delivery to Main was not accepted while Main was busy, so
+    the pane capture is treated as review evidence rather than a delivered
+    instruction.
+  - ProfessionalAgent sufficiency/retirement disposition: the scoped runtime
+    guard used the smallest sufficient team for a narrow runtime-contract
+    parser change, MainAgent plus one Layer16 runtime reviewer; no additional
+    ProfessionalAgent or SubAgent viewpoint was required because the affected
+    surface was limited to feature parsing and launch-argument contract tests.
+    Accepted-retirement evidence is not claimed in this public-copy handoff
+    entry; until MainAgent accepts the result, the ProfessionalAgent review
+    remains review evidence rather than a retired-pane record.
+  - affected scope: `.codex/agent_orchestra_minimal/codex_features.py`,
+    `tests/test_codex_config_contract.py`, `tests/test_launch_args.py`, and
+    `Handoff.md` inside the ignored `AgentOrchestra/` public copy. The E2E
+    isolated session recorded root mirror synchronization separately because
+    that session could not write root `.codex` files directly.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_codex_config_contract tests.test_launch_args` passed;
+    `python3 -m py_compile .codex/agent_orchestra_minimal/codex_features.py
+    tests/test_codex_config_contract.py tests/test_launch_args.py` passed;
+    `python3 -m unittest tests.test_handoff_release_evidence` passed;
+    `python3 -m unittest discover -s tests` passed, 249 tests; `find
+    .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 |
+    xargs -0 python3 -m py_compile` passed; `git diff --check --
+    AgentOrchestra` passed from the parent repo; `nix flake check --no-build
+    path:$PWD` passed from `AgentOrchestra/`.
+  - candidate-ledger disposition: integrated for the Codex feature parser
+    absent-state guard candidate and the equals-form launch-boundary override
+    guard candidate; evidence: this handoff entry,
+    `.codex/agent_orchestra_minimal/codex_features.py`,
+    `.codex/agent_orchestra_minimal/launch_args.py`,
+    `tests/test_codex_config_contract.py`, and `tests/test_launch_args.py`.
+  - deterministic finalization blockers: none known for the public-copy runtime
+    guard after targeted verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 Issue #7 E2E current-test evidence guard:
+  - 2026-06-08 Layer25 documentation/release-evidence review found that
+    `E2E.md` still named removed Issue #7 acceptance modules
+    `tests/test_wake_payload_contract.py`,
+    `tests.test_wake_payload_contract`, and
+    `tests.test_e2e_issue7_acceptance`, while the current executable
+    long-run-equivalent contract evidence lives in
+    `tests/test_continuous_improvement_contract.py` with related Hook/tmux and
+    Skill contract tests.
+  - SPEC sections: GitHub Issue #7: Long-Run Memory Dilution; Release
+    Evidence And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: `pro-docs-release` owned this documentation evidence
+    guard; peer consultation was not required because the change only updates
+    stale E2E evidence names and adds an executable documentation assertion,
+    with no runtime behavior change.
+  - affected scope: `E2E.md`, `Handoff.md`,
+    `tests/test_continuous_improvement_contract.py`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_continuous_improvement_contract tests.test_change_control_surface
+    tests.test_handoff_release_evidence tests.test_readme_verification_contract`
+    passed, 21 tests; `python3 -m py_compile
+    tests/test_continuous_improvement_contract.py` passed; `python3 -m unittest
+    discover -s tests` passed, 246 tests; `find
+    .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 |
+    xargs -0 python3 -m py_compile` passed; `git diff --check --
+    AgentOrchestra` passed from the parent repo; path-form `nix flake check
+    --no-build path:$PWD` passed on `aarch64-darwin`.
+  - candidate-ledger disposition: integrated for the Issue #7 E2E current-test
+    evidence guard candidate; evidence: this handoff entry, `E2E.md`, and
+    `tests/test_continuous_improvement_contract.py`.
+  - deterministic finalization blockers: none known for this scoped docs
+    evidence guard after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 README verification contract guard:
+  - 2026-06-08 Layer15 QA/change-control review found that README contributor
+    verification was already aligned in content, but the executable README
+    contract test did not strongly guard the full standard verification
+    surface across English and Japanese docs, including path-form Nix line
+    wrapping.
+  - SPEC sections: Development Process And Quality Gates; Release Evidence
+    And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned this QA guard; peer consultation
+    with `pro-runtime` was attempted through tmux but not delivered because
+    the peer pane remained busy, so no runtime approval is claimed. The change
+    is limited to documentation contract evidence and does not alter runtime
+    behavior.
+  - affected scope: `Handoff.md`, `tests/test_change_control_surface.py`, and
+    `tests/test_readme_verification_contract.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_readme_verification_contract tests.test_change_control_surface`
+    passed, 6 tests; `python3 -m py_compile
+    tests/test_readme_verification_contract.py` passed; `python3 -m unittest
+    discover -s tests` passed, 245 tests; `find
+    .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 |
+    xargs -0 python3 -m py_compile` passed; `git diff --check --
+    AgentOrchestra` passed from the parent repo; path-form `nix flake check
+    --no-build path:$PWD` passed on `aarch64-darwin`.
+  - candidate-ledger disposition: integrated for the README verification
+    contract guard candidate; evidence: this handoff entry and
+    `tests/test_readme_verification_contract.py`.
+  - deterministic finalization blockers: none known for this scoped QA guard
+    after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 path-form README evidence guard:
+  - 2026-06-08 Layer15 QA/change-control review found that SPEC Completion
+    Criteria and the PR checklist require path-form Nix evidence for
+    generated-copy or untracked-fixture verification, but README contributor
+    verification only showed repository-root Nix commands.
+  - SPEC sections: Development Process And Quality Gates; Release Evidence
+    And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned this QA docs/test guard; peer
+    consultation was not required because the change is limited to contributor
+    verification wording and executable documentation assertions, with no
+    runtime behavior change.
+  - affected scope: `README.md`, `README.ja.md`, `Handoff.md`,
+    `tests/test_readme_verification_contract.py`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_readme_verification_contract tests.test_change_control_surface`
+    passed, 6 tests; `python3 -m unittest discover -s tests` passed, 245
+    tests; `find .codex/agent_orchestra_minimal .codex/hooks tests -name
+    '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed from the parent repo; `nix flake check
+    --no-build path:$PWD` passed; `nix build
+    path:$PWD#checks.$system.source-contract` passed.
+  - candidate-ledger disposition: integrated for the path-form README evidence
+    candidate; evidence: this handoff entry, README verification docs, and
+    `tests/test_readme_verification_contract.py`.
+  - deterministic finalization blockers: none known for this scoped QA docs
+    guard after targeted verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 prevent-idle-sleep launch guard:
+  - 2026-06-08 MainAgent, `pro-runtime-08`, and `pro-docs-25` reviewed
+    `SPEC.md` against the current generated-copy runtime and found that the
+    automatic Codex `prevent_idle_sleep` launch behavior had runtime and README
+    coverage but no freshest release-evidence entry.
+  - SPEC sections: Instruction Isolation; Skills; Release Evidence And SPEC
+    Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned this evidence refresh; `pro-runtime-08`
+    reviewed launch/runtime behavior and full unittest status; `pro-docs-25`
+    identified the release-evidence freshness gap.
+  - affected scope: `Handoff.md`, `tests/test_change_control_surface.py`,
+    `tests/test_handoff_release_evidence.py`, and
+    `tests/test_readme_verification_contract.py`.
+  - required checks before this evidence refresh: `python3 -m unittest
+    discover -s tests` passed, 245 tests.
+  - required checks after this evidence refresh: `python3 -m unittest
+    tests.test_change_control_surface tests.test_handoff_release_evidence
+    tests.test_readme_verification_contract` passed, 10 tests; `python3 -m unittest
+    tests.test_launch_args tests.test_codex_config_contract tests.test_spec_contract`
+    passed, 37 tests; `python3 -m unittest discover -s tests` passed, 245
+    tests; `find .codex/agent_orchestra_minimal .codex/hooks tests -name
+    '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed from the parent repo; `nix flake check
+    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra --no-build`
+    passed.
+  - candidate-ledger disposition: integrated for the prevent-idle-sleep
+    release-evidence freshness candidate; evidence: this handoff entry,
+    `SPEC.md`, `README.md`, `.codex/agent_orchestra_minimal/launch_args.py`,
+    `.codex/agent_orchestra_minimal/codex_features.py`,
+    `tests/test_change_control_surface.py`,
+    `tests/test_handoff_release_evidence.py`, and
+    `tests/test_readme_verification_contract.py`.
+  - deterministic finalization blockers: none known for this scoped evidence
+    refresh after targeted verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 unittest runner guard:
+  - 2026-06-08 Layer15 QA/change-control review found that the generated-copy
+    CI workflow and SPEC required `unittest`, but contributor docs and the PR
+    checklist did not explicitly prevent release evidence from drifting toward
+    `pytest`, which is not a project dependency.
+  - SPEC sections: Development Process And Quality Gates; Release Evidence
+    And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned this QA guard; peer consultation was
+    not required because the change is limited to contributor verification
+    wording and change-control assertions, with no runtime behavior change.
+  - affected scope: `README.md`, `README.ja.md`,
+    `.github/pull_request_template.md`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_change_control_surface` passed, 10 tests; `python3 -m unittest
+    discover -s tests` passed, 245 tests; `find
+    .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 |
+    xargs -0 python3 -m py_compile` passed; `git diff --check --
+    AgentOrchestra` passed from the parent repo.
+  - candidate-ledger disposition: integrated for the unittest runner guard
+    candidate; evidence: this handoff entry, README verification docs, PR
+    template checklist, and `tests/test_change_control_surface.py`.
+  - deterministic finalization blockers: none known for this scoped QA guard
+    after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-08 SPEC alignment sweep:
+  - 2026-06-08 MainAgent, `pro-runtime-16`, and `pro-qa-15` reviewed
+    `SPEC.md` against the generated-copy `AgentOrchestra/` runtime, tests,
+    docs, and release evidence surfaces. The generated copy is content-synced
+    with the parent runtime surfaces, but it is not tracked by the parent Git
+    worktree, so release checks must record path-form Nix evidence when run
+    against this copy directly.
+  - The runtime review found one tmux liveness gap: pre-send readiness treated
+    `MainAgent` and `ProfessionalAgent` prompts as occupied but did not treat
+    direct ProfessionalAgent id prompts such as `pro-runtime-16 -> pro-qa-15:`
+    as occupied. The prompt classifier now treats those peer-consultation
+    prompts as pending Agent messages before paste/send.
+  - The QA/change-control review found one contributor evidence gap:
+    release-process docs and the PR checklist required `unittest` but did not
+    explicitly prevent silent substitution with `pytest`. README and PR
+    evidence now preserve `unittest` as the project runner unless a task adds
+    and justifies a new dependency.
+  - SPEC sections: Development Process And Quality Gates; Shared Task File;
+    Hook-Driven Re-kick; tmux Communication; Instruction Isolation; Release
+    Evidence And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned the handoff evidence refresh and
+    integration review; `pro-runtime-16` owned the tmux peer-prompt guard and
+    reviewed runtime/task/tmux/launch surfaces; `pro-qa-15` owned the
+    `unittest` release-evidence guard and reviewed QA/change-control/release
+    surfaces.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_probe.py`,
+    `tests/test_tmux_send.py`, `.github/pull_request_template.md`,
+    `README.md`, `README.ja.md`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks before this evidence refresh: `python3 -m unittest
+    discover -s tests` passed, 244 tests; `python3 -m py_compile $(find
+    .codex -name '*.py' -type f | sort)` passed; `git diff --check --
+    AgentOrchestra` passed from the parent repo; direct `nix flake check
+    --no-build` inside `AgentOrchestra/` failed because the parent Git
+    worktree does not track `AgentOrchestra/flake.nix`; path-form `nix flake
+    check path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra
+    --no-build` passed.
+  - required checks after integrating the scoped improvements: `python3 -m
+    unittest tests.test_tmux_send tests.test_tmux_send_edge_cases` passed, 28
+    tests; `python3 -m unittest tests.test_change_control_surface` passed, 10
+    tests; `python3 -m unittest discover -s tests` passed, 245 tests;
+    `python3 -m py_compile $(find .codex -name '*.py' -type f | sort)`
+    passed; `git diff --check -- AgentOrchestra` passed; path-form `nix flake
+    check path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra
+    --no-build` passed; path-form `nix build
+    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra#checks.$(nix
+    eval --raw --impure --expr builtins.currentSystem).source-contract
+    --no-link` passed.
+  - candidate-ledger disposition: integrated for the SPEC alignment evidence
+    refresh candidate, the tmux peer-prompt guard candidate, and the
+    `unittest` release-evidence guard candidate; evidence: this handoff entry,
+    `tests/test_change_control_surface.py`, `tests/test_tmux_send.py`, and
+    `.codex/agent_orchestra_minimal/tmux_probe.py`.
+  - deterministic finalization blockers: none known for this scoped evidence
+    refresh after standard and path-form Nix verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-07 tmux delivery baseline guard:
+  - 2026-06-07 live AgentOrchestra E2E run found a second tmux delivery
+    false-acceptance risk: after a fresh pasted message disappeared back to a
+    ready prompt, the helper could accept a capture identical to the baseline
+    screen if that old screen still contained a stale activity marker.
+  - SPEC sections: tmux Communication; Hook-Driven Re-kick; Release Evidence
+    And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned the runtime fix; `runtime-pro`
+    provided the blocking runtime objection; `docs-pro` reviewed docs/contracts
+    and found no additional drift.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `tests/test_tmux_send_edge_cases.py`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_tmux_send_edge_cases` passed, 13 tests; `python3 -m unittest
+    discover -s tests` passed, 244 tests; `python3 -m py_compile
+    .codex/agent_orchestra_minimal/*.py .codex/hooks/*.py tests/*.py` passed;
+    `git diff --check` passed.
+  - candidate-ledger disposition: integrated for the tmux delivery baseline
+    false-acceptance candidate; evidence: this handoff entry,
+    `tests/test_change_control_surface.py`, and
+    `tests/test_tmux_send_edge_cases.py`.
+  - deterministic finalization blockers: none known for this scoped runtime
+    patch after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-07 QA/release evidence consistency pass:
+  - 2026-06-07 Layer15 QA/release-process review re-ran the standard
+    source-contract checks and found release-evidence drift: the latest handoff
+    evidence still named the earlier 238-test generated-copy run while the
+    current suite now runs 242 tests.
+  - The same SPEC sweep found that `agent-orchestra-release` existed in
+    `.codex/skills` and SPEC's Release Skill section, but generated isolated
+    `CODEX_HOME/skills` material did not install it for Agents that are
+    explicitly assigned a release workflow.
+  - SPEC sections: Development Process And Quality Gates; Shared Task File;
+    Hook-Driven Re-kick; tmux Communication; Instruction Isolation; Release
+    Evidence And SPEC Traceability; Skills; Completion Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned the evidence consistency pass;
+    MainAgent owned the release-skill launch-material fix; the two changes were
+    reviewed together during the same AgentTeam cycle.
+  - affected scope: `.codex/agent_orchestra_minimal/launch_io.py`,
+    `tests/test_launch_material_install_contract.py`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks before the patch: `python3 -m unittest discover -s tests`
+    passed, 242 tests; `find .codex/agent_orchestra_minimal .codex/hooks tests
+    -name '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed.
+  - required checks after the patch: `python3 -m unittest
+    tests.test_change_control_surface` passed, 9 tests; `python3 -m unittest
+    tests.test_launch_material_install_contract` passed, 7 tests; `python3 -m
+    unittest discover -s tests` passed, 243 tests; `python3 -m py_compile
+    .codex/agent_orchestra_minimal/*.py .codex/hooks/*.py tests/*.py` passed;
+    `git diff --check -- AgentOrchestra` passed; `nix flake check
+    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra` passed
+    `checks.aarch64-darwin.source-contract`.
+  - candidate-ledger disposition: integrated for the QA/release evidence drift
+    candidate and the release-skill launch-material install candidate;
+    evidence: this handoff entry, `tests/test_change_control_surface.py`, and
+    `tests/test_launch_material_install_contract.py`.
+  - deterministic finalization blockers: none known for this scoped evidence
+    consistency patch after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-07 tmux delivery confirmation fix:
+  - 2026-06-07 live AgentOrchestra E2E run found a runtime delivery
+    false-positive: `tmux_send` reported an accepted task for `pro-runtime-08`
+    while the message was still visibly queued at the Codex prompt and required
+    a manual submit key to start.
+  - SPEC sections: tmux Communication; Hook-Driven Re-kick; Release Evidence
+    And SPEC Traceability; Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned the runtime fix; `pro-runtime-08` and
+    `pro-qa-15` provided independent runtime and QA review evidence during the
+    same E2E cycle.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_delivery.py`,
+    `tests/test_tmux_send_edge_cases.py`, `Handoff.md`, and
+    `tests/test_change_control_surface.py`.
+  - required checks after the patch: `python3 -m unittest discover -s tests`
+    passed, 238 tests; `find .codex/agent_orchestra_minimal .codex/hooks tests
+    -name '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed.
+  - candidate-ledger disposition: integrated for the tmux delivery
+    false-positive candidate; evidence: `.codex/agent_orchestra_minimal/
+    tmux_delivery.py`, `tests/test_tmux_send_edge_cases.py`, and this handoff
+    entry.
+  - deterministic finalization blockers: none known for this scoped runtime
+    delivery fix after standard verification.
+  - blocking objections: none known.
+- Latest generated-copy checks after the 2026-06-07 QA evidence refresh:
+  - 2026-06-07 Layer15 QA/release-process review found release-evidence drift:
+    the newest handoff evidence still named the earlier 215-test generated-copy
+    run even though the current source-contract suite now runs 233 tests.
+  - SPEC sections: Release Evidence And SPEC Traceability; Completion
+    Criteria.
+  - owner_dri/reviewers: `pro-qa-15` owned this evidence refresh; peer
+    consultation with `pro-runtime-08` was not required because this change unit
+    only updates QA evidence text and its contract assertion after a passing
+    source-contract run.
+  - affected scope: `Handoff.md` and `tests/test_change_control_surface.py`.
+  - required checks before the patch: `python3 -m unittest discover -s tests`
+    passed, 233 tests; `find .codex/agent_orchestra_minimal .codex/hooks tests
+    -name '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed.
+  - required checks after the patch: `python3 -m unittest discover -s tests`
+    passed, 235 tests; `find .codex/agent_orchestra_minimal .codex/hooks tests
+    -name '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check -- AgentOrchestra` passed.
+  - candidate-ledger disposition: integrated for the Handoff verification-count
+    drift candidate; evidence: this handoff entry and
+    `tests/test_change_control_surface.py`.
+  - deterministic finalization blockers: none known for this scoped QA evidence
+    refresh after standard verification.
+  - blocking objections: none known.
 - Latest generated-copy checks after the 2026-05-27 launch profile and release-skill boundary pass:
   - 2026-05-27 SPEC review found three launch/change-control gaps in the
     generated-copy surface: launch metadata still referenced legacy

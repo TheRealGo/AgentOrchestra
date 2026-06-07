@@ -8,7 +8,7 @@ from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
 from .launch_args import codex_launch_argv, editable_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
-from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, write_env_shell, write_json
+from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, validate_auth_source, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
 from .task_file import SharedTaskFile
 from .tmux_delivery import normalize_submit_key
@@ -63,6 +63,9 @@ def prepare_launch_material(
     config_path = codex_home / "agent-orchestra.config.toml"
     shared_task = Path(task_file).expanduser().resolve() if task_file else run_root / "tasks.ini"
     normalized_tmux_pane = optional_tmux_pane(tmux_pane)
+    submit_key = normalize_submit_key(os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY"))
+    extra_codex_args = validate_codex_args(codex_args)
+    validate_auth_source(auth_source)
     if _is_relative_to(workspace, target_root):
         raise ValueError(
             "isolated workspace must not be inside target_project; use a run_dir "
@@ -102,9 +105,7 @@ def prepare_launch_material(
     startup_agents.chmod(PRIVATE_FILE_MODE)
     install_codex_material(codex_home, workspace, config_path)
     install_auth_material(codex_home, auth_source)
-    submit_key = normalize_submit_key(os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY"))
     main_pane = main_tmux_pane(kind, normalized_tmux_pane)
-    extra_codex_args = validate_codex_args(codex_args)
     env = {
         "HOME": str(home),
         "CODEX_HOME": str(codex_home),
@@ -145,7 +146,6 @@ def prepare_launch_material(
     write_json(env_path, env)
     write_env_shell(env_shell_path, env)
     write_json(command_path, command)
-
     return LaunchMaterial(
         agent_id=agent_id,
         agent_kind=kind,

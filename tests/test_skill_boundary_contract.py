@@ -18,6 +18,11 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("not from the target project", launch_normalized)
         self.assertIn("Do not use the target project's `layers/` tree", launch_normalized)
         self.assertIn("single quotes when invoking `prepare_agent_launch.py`", launch_normalized)
+        self.assertIn("Do not recompose the Codex launch command by hand", launch_normalized)
+        self.assertIn("`command.json` is the runtime boundary for the full argv", launch_normalized)
+        self.assertIn("--enable prevent_idle_sleep", launch_normalized)
+        self.assertIn('Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json")', launch)
+        self.assertNotIn("codex --profile agent-orchestra --ask-for-approval never", launch)
         self.assertNotIn("--instruction-source \"$AGENT_ORCHESTRA_TARGET_PROJECT", launch)
         self.assertNotIn("AGENT_ORCHESTRA_TARGET_PROJECT/layers", launch)
         self.assertNotIn("${AGENT_ORCHESTRA_TARGET_PROJECT}/layers", launch)
@@ -48,6 +53,8 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("not supervision", common)
         self.assertIn("returns non-zero if the target Codex TUI does not accept the message", common_normalized)
         self.assertIn("If the helper exits non-zero, do not continue as if the message was delivered", common)
+        self.assertIn("record the attempted consultation or review request", common_normalized)
+        self.assertIn("not delivered", common_normalized)
         self.assertIn("Raw `tmux send-keys` is limited to shell launch commands, `/exit`", common)
         self.assertNotIn("For short one-line messages", common)
         self.assertNotIn("MainAgent: please investigate", common)
@@ -138,6 +145,11 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "Use the bounded detached Python self-exit procedure",
             "documented by the `agent-orchestra-tmux-main` Skill as the final tool action",
             "report the explicit self-exit failure",
+            "Do not recompose the Codex launch command by hand",
+            "feature flags such as `--enable prevent_idle_sleep`",
+            "`command.json` is the source of truth",
+            "use a neutral variable such as `rc=$?`",
+            "`status` is a read-only zsh parameter",
         ):
             self.assertIn(phrase, normalized)
 

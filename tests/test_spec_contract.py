@@ -86,6 +86,8 @@ class SpecContractTests(unittest.TestCase):
             "legacy or user-supplied profile flags such as `--profile-v2`",
             "must be rejected from extra Codex args",
             "approval policy, sandbox mode, hooks enablement, and network access",
+            "if `codex features list` reports `prevent_idle_sleep`",
+            "AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1",
             "repository startup instruction surface is controlled by generated",
             "must not inject a synthetic first user prompt",
             "must not treat `--` or trailing argv as an initial task",

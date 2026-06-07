@@ -32,6 +32,7 @@ class TmuxSendTests(unittest.TestCase):
     def test_cli_polls_per_attempt_has_busy_peer_floor(self) -> None:
         self.assertEqual(_effective_cli_polls_per_attempt(20), 60)
         self.assertEqual(_effective_cli_polls_per_attempt(60), 60)
+        self.assertEqual(_effective_cli_polls_per_attempt(80), 60)
 
     def test_send_text_pastes_submits_captures_and_cleans_buffer(self) -> None:
         fake = FakeTmuxSend(captures=["› MainAgent: investigate\n\ngpt-5.5 default\nWorking\n"])
@@ -140,6 +141,8 @@ class TmuxSendTests(unittest.TestCase):
             "> ProfessionalAgent: pending reply\n",
             "> ProfessionalAgent runtime-engineer: pending reply\n",
             "> ProfessionalAgent runtime-engineer -> requirements: pending reply\n",
+            "› pro-runtime-16 -> pro-qa-15: pending peer consultation\n",
+            "> pro-runtime-16: pending reply\n",
         ):
             with self.subTest(baseline_capture=baseline_capture):
                 fake = FakeTmuxSend(captures=[], baseline_capture=baseline_capture)

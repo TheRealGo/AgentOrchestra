@@ -10,6 +10,7 @@ on:
       - "layers/**"
       - "tests/**"
       - "Handoff.md"
+      - "E2E.md"
       - "README.md"
       - "README.ja.md"
       - "SPEC.md"
@@ -29,6 +30,7 @@ on:
       - "layers/**"
       - "tests/**"
       - "Handoff.md"
+      - "E2E.md"
       - "README.md"
       - "README.ja.md"
       - "SPEC.md"
@@ -69,7 +71,7 @@ jobs:
             | sh -s -- install --no-confirm
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Check AgentOrchestra whitespace
-        run: git diff --check -- .codex tests layers Handoff.md README.md README.ja.md SPEC.md .gitignore flake.nix flake.lock .github
+        run: git diff --check -- .codex tests layers Handoff.md E2E.md README.md README.ja.md SPEC.md .gitignore flake.nix flake.lock .github
       - name: Check AgentOrchestra Python contract
         run: |
           find .codex/agent_orchestra_minimal .codex/hooks tests -name '*.py' -print0 | xargs -0 python3 -m py_compile
