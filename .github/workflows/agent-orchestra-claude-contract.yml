@@ -1,0 +1,55 @@
+name: agent-orchestra claude contract
+
+on:
+  pull_request:
+    paths:
+      - ".claude/agent_orchestra_minimal/**"
+      - ".claude/bin/**"
+      - ".claude/hooks/**"
+      - ".claude/skills/agent-orchestra-*/**"
+      - "layers/**"
+      - "tests_claude/**"
+      - "SPEC.claude.md"
+      - ".gitignore"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/agent-orchestra-claude-contract.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".claude/agent_orchestra_minimal/**"
+      - ".claude/bin/**"
+      - ".claude/hooks/**"
+      - ".claude/skills/agent-orchestra-*/**"
+      - "layers/**"
+      - "tests_claude/**"
+      - "SPEC.claude.md"
+      - ".gitignore"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/agent-orchestra-claude-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  claude-source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Nix
+        run: |
+          curl --proto '=https' --tlsv1.2 --silent --show-error --fail --location https://install.determinate.systems/nix \
+            | sh -s -- install --no-confirm
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+      - name: Check AgentOrchestra Claude whitespace
+        run: git diff --check -- .claude tests_claude layers SPEC.claude.md .gitignore flake.nix flake.lock .github
+      - name: Check AgentOrchestra Claude Python contract
+        run: |
+          find .claude/agent_orchestra_minimal .claude/hooks tests_claude -name '*.py' -print0 | xargs -0 python3 -m py_compile
+          python3 -m unittest discover -s tests_claude
+      - name: Evaluate AgentOrchestra source contract
+        run: nix flake check --no-build
+      - name: Build AgentOrchestra Claude source contract
+        run: nix build .#checks.x86_64-linux.claude-source-contract

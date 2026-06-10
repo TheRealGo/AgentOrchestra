@@ -1,22 +1,36 @@
-# codex-o
+# AgentOrchestra
 
 [English](README.md) | [日本語](README.ja.md)
 
-`codex-o` は Codex CLI を AgentOrchestra モードで起動するコマンドです。
-MainAgent と複数の独立した ProfessionalAgent を使い、プロジェクトの調査、
-実装、レビュー、検証を分担しながら改善を進めます。
+AgentOrchestra は、ユーザーとの窓口になる MainAgent と、複数の独立した
+専門 ProfessionalAgent を使って、プロジェクトの調査・実装・レビュー・検証を
+分担しながら改善を進めるランタイムです。ProfessionalAgent は別々の CLI
+セッションとして tmux pane 上で動きます。
 
-使う場所は、改善したいプロジェクトのディレクトリです。MainAgent は
-ユーザーとの窓口になり、ProfessionalAgent は別々の Codex CLI セッション
-として tmux pane 上で動きます。
+同じモデルを共有する 2 つのランタイムを同梱しており、使う CLI に応じて
+どちらかを選びます。
+
+- **`codex-o`** — Codex CLI ランタイム
+- **`claude-o`** — Claude Code CLI ランタイム
+
+両者は共存し、セッションごとにどちらかを使います。以下は `codex-o` の詳細で、
+Claude Code ランタイムは [Claude Code ランタイム (claude-o)](#claude-code-ランタイム-claude-o) を参照してください。
 
 ## インストール
+
+Codex CLI ランタイム:
 
 ```sh
 nix profile add github:TheRealGo/AgentOrchestra#codex-o
 ```
 
-インストール後は、`codex-o` を通常のコマンドとして使えます。
+Claude Code ランタイム:
+
+```sh
+nix profile add github:TheRealGo/AgentOrchestra#claude-o
+```
+
+インストール後は、`codex-o` と `claude-o` を通常のコマンドとして使えます。
 
 ## 必要なもの
 
@@ -176,7 +190,7 @@ nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
 ## 更新
 
 ```sh
-nix profile upgrade codex-o
+nix profile upgrade codex-o   # claude-o の場合: nix profile upgrade claude-o
 ```
 
 別名で profile に入れている場合は、次のコマンドで確認できます。
@@ -214,6 +228,81 @@ path:$PWD` と `nix build path:$PWD#checks.$system.source-contract`。
 
 環境に合わせて、`x86_64-linux` は `aarch64-darwin`、`x86_64-darwin`、
 `aarch64-linux`、`x86_64-linux` などに置き換えてください。
+
+## Claude Code ランタイム (claude-o)
+
+このリポジトリは、上記の Codex ランタイムに加えて Claude Code ランタイムも
+同梱しています。`claude-o` は Claude Code CLI を AgentOrchestra モードで起動
+するコマンドです。MainAgent と複数の独立した ProfessionalAgent を使うモデル
+は同じですが、各 Agent は Codex CLI セッションではなく Claude Code セッション
+として tmux pane 上で動きます。Codex の `codex-o` ランタイムは無改変で、両者
+は共存します。
+
+### 必要なもの
+
+- Claude Code CLI
+- Nix
+- tmux
+- Python 3
+
+### 認証
+
+Claude Code ランタイムは認証情報が**必須**です。認証が無いと、各 Agent は
+「Not logged in」の状態で起動し、いかなる作業もできません。Codex が file ベースの
+`auth.json` を隔離 home へ自動コピーするのに対し、macOS の Claude Code は認証情報を
+ログイン Keychain に保存し、各 Agent が動く隔離された `CLAUDE_CONFIG_DIR` は Keychain
+を読みません。そのため、普段のシェルでの `claude` 対話ログインは Agent に引き継がれ
+ません。認証情報を明示的に渡す必要があります。
+
+`claude-o` の前に認証情報を 1 度だけ export します。runtime はそれを各 Agent の
+`env.sh`（パーミッション `0600`）に書き込み、**各 Agent の起動時 — MainAgent も、
+MainAgent が立ち上げる各 ProfessionalAgent の pane も — が `env.sh` を source する**
+ため、pane ごとの設定なしに全員が同じ 1 つの認証情報で認証されます。
+
+```sh
+claude setup-token                     # 長期 OAuth トークンが表示される
+export CLAUDE_CODE_OAUTH_TOKEN=<token>  # もしくは: export ANTHROPIC_API_KEY=<key>
+cd /path/to/project && claude-o
+```
+
+認証情報を渡さずに `claude-o` を起動した場合（export したトークンも、コピー可能な
+`.credentials.json` も無い場合）、警告を表示したうえでセッション自体は開きますが、
+各 Agent は「Not logged in」のままで、認証情報を渡すまで作業できません。runtime は
+Keychain の秘密情報を取り出すことはありません。認証情報の用意は必須のデプロイ手順です。
+
+### クイックスタート
+
+改善したいプロジェクトへ移動して `claude-o` を実行します。
+
+```sh
+cd /path/to/project && claude-o
+```
+
+checkout からは local Nix app としても実行できます。
+
+```sh
+nix run .#claude-o
+nix run .#agent-orchestra-claude -- doctor --target-project .
+```
+
+### 検証
+
+```sh
+python3 -m unittest discover -s tests_claude
+find .claude/agent_orchestra_minimal .claude/hooks tests_claude \
+  -name '*.py' -print0 | xargs -0 python3 -m py_compile
+nix build .#checks.x86_64-linux.claude-source-contract
+```
+
+環境に合わせて、`x86_64-linux` は `aarch64-darwin`、`x86_64-darwin`、
+`aarch64-linux`、`x86_64-linux` などに置き換えてください。
+
+### 詳細 (Claude Code)
+
+- `SPEC.claude.md` は Claude Code ランタイムを `SPEC.md` への delta として
+  定義します。
+- `.claude/agent_orchestra_minimal/` には Claude Code ランタイムがあります。
+- `.claude/skills/` には Agent 向けの操作手順があります。
 
 ## 詳細
 

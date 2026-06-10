@@ -7,6 +7,9 @@ __pycache__/
 .codex/installation_id
 .codex/tmp/
 .codex/skills/.system/
+.claude/installation_id
+.claude/tmp/
+.claude/skills/.system/
 E2E.md
 AgentOrchestra/
 Handoff.md

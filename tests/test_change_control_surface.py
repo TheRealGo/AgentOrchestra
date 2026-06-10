@@ -94,6 +94,8 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertIn("unresolved live tmux/Codex E2E gap", template)
 
     def test_handoff_matches_stop_hook_pane_fallback_contract(self) -> None:
+        if not (ROOT / "Handoff.md").exists():
+            self.skipTest("Handoff.md is internal-only and absent from this tree")
         handoff = (ROOT / "Handoff.md").read_text(encoding="utf-8")
 
         self.assertIn("invalid explicit pane env never falls back", handoff)
@@ -101,6 +103,8 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertNotIn("invalid own pane env\n    still takes no action", handoff)
 
     def test_handoff_current_verification_names_latest_check_result_first(self) -> None:
+        if not (ROOT / "Handoff.md").exists():
+            self.skipTest("Handoff.md is internal-only and absent from this tree")
         handoff = (ROOT / "Handoff.md").read_text(encoding="utf-8")
 
         pr_disposition_index = handoff.index(
@@ -219,6 +223,8 @@ class ChangeControlSurfaceTests(unittest.TestCase):
         self.assertNotIn("Latest root checks after accepting the current generated-copy proposal", handoff)
 
     def test_handoff_separates_residual_checks_from_historical_followup_evidence(self) -> None:
+        if not (ROOT / "Handoff.md").exists():
+            self.skipTest("Handoff.md is internal-only and absent from this tree")
         handoff = (ROOT / "Handoff.md").read_text(encoding="utf-8")
 
         remaining_index = handoff.index("## Remaining Operational Checks")

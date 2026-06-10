@@ -1,22 +1,35 @@
-# codex-o
+# AgentOrchestra
 
 [English](README.md) | [日本語](README.ja.md)
 
-`codex-o` starts Codex CLI with AgentOrchestra: a small runtime for running a
-project-improvement session with a MainAgent and independent specialist
-ProfessionalAgents.
+AgentOrchestra runs a project-improvement session with a user-facing MainAgent
+and independent specialist ProfessionalAgents that inspect, edit, review, and
+test from separate CLI sessions in tmux panes.
 
-Use it from the project you want to improve. MainAgent stays user-facing, while
-ProfessionalAgents can inspect, edit, review, and test from separate Codex CLI
-sessions in tmux panes.
+It ships two runtimes that share the same model — use whichever CLI you run:
+
+- **`codex-o`** — Codex CLI runtime.
+- **`claude-o`** — Claude Code CLI runtime.
+
+The two coexist; pick one per session. The sections below describe `codex-o` in
+detail; see [Claude Code Runtime (claude-o)](#claude-code-runtime-claude-o) for
+the Claude Code runtime.
 
 ## Install
+
+Codex CLI runtime:
 
 ```sh
 nix profile add github:TheRealGo/AgentOrchestra#codex-o
 ```
 
-After installation, `codex-o` is available as a normal command.
+Claude Code runtime:
+
+```sh
+nix profile add github:TheRealGo/AgentOrchestra#claude-o
+```
+
+After installation, `codex-o` and `claude-o` are available as normal commands.
 
 ## Requirements
 
@@ -175,7 +188,7 @@ likely to pause during system idle sleep. Set
 ## Updating
 
 ```sh
-nix profile upgrade codex-o
+nix profile upgrade codex-o   # or: nix profile upgrade claude-o
 ```
 
 If you installed under a different profile name, list your profile entries with:
@@ -216,6 +229,81 @@ checked tree is the visible working directory, for example `nix flake check
 
 Use the system-specific check name for your platform when needed, such as
 `aarch64-darwin`, `x86_64-darwin`, `aarch64-linux`, or `x86_64-linux`.
+
+## Claude Code Runtime (claude-o)
+
+This repository also ships a Claude Code runtime alongside the Codex one above.
+`claude-o` starts the Claude Code CLI with AgentOrchestra: the same MainAgent
+plus independent specialist ProfessionalAgents model, but each Agent runs as a
+Claude Code session in a tmux pane instead of a Codex CLI session. The Codex
+`codex-o` runtime is unchanged; the two coexist.
+
+### Requirements
+
+- Claude Code CLI
+- Nix
+- tmux
+- Python 3
+
+### Authentication
+
+The Claude Code runtime **requires** a credential: without one, every Agent
+starts "Not logged in" and cannot do any work. Unlike Codex — which copies its
+file-based `auth.json` into the isolated home automatically — Claude Code on
+macOS keeps credentials in the login Keychain, and the isolated
+`CLAUDE_CONFIG_DIR` each Agent runs under does not read the Keychain, so a normal
+interactive `claude` login in your shell does not carry over. You must supply a
+credential explicitly.
+
+Export one credential before `claude-o`: the runtime writes it into each Agent's
+`env.sh` (mode `0600`), and every Agent launch — MainAgent and each
+ProfessionalAgent pane it spawns — sources `env.sh`, so they all authenticate
+from that single credential without any per-pane setup.
+
+```sh
+claude setup-token                     # prints a long-lived OAuth token
+export CLAUDE_CODE_OAUTH_TOKEN=<token>  # or: export ANTHROPIC_API_KEY=<key>
+cd /path/to/project && claude-o
+```
+
+If you start `claude-o` without a discoverable credential (no exported token and
+no copyable `.credentials.json`), it prints a warning and still opens the
+session — but the Agents stay "Not logged in" and cannot work until you provide
+one. The runtime never extracts Keychain secrets; supplying the credential is a
+required deployment step.
+
+### Quick Start
+
+Open the project you want to improve and run `claude-o`:
+
+```sh
+cd /path/to/project && claude-o
+```
+
+From a checkout you can also run the local Nix apps:
+
+```sh
+nix run .#claude-o
+nix run .#agent-orchestra-claude -- doctor --target-project .
+```
+
+### Verification
+
+```sh
+python3 -m unittest discover -s tests_claude
+find .claude/agent_orchestra_minimal .claude/hooks tests_claude \
+  -name '*.py' -print0 | xargs -0 python3 -m py_compile
+nix build .#checks.x86_64-linux.claude-source-contract
+```
+
+Use the system-specific check name for your platform when needed, such as
+`aarch64-darwin`, `x86_64-darwin`, `aarch64-linux`, or `x86_64-linux`.
+
+### More Detail (Claude Code)
+
+- `SPEC.claude.md` specifies the Claude Code runtime as a delta over `SPEC.md`.
+- `.claude/agent_orchestra_minimal/` contains the Claude Code runtime.
+- `.claude/skills/` contains the Agent-facing operating procedures.
 
 ## More Detail
 
