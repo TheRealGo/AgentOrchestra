@@ -46,6 +46,7 @@ def send_wake(
         poll_interval_seconds=WAKE_POLL_INTERVAL_SECONDS,
         polls_per_attempt=WAKE_POLLS_PER_ATTEMPT,
         require_fresh_capture=True,
+        clear_default_composer=False,
     )
 
 

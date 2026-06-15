@@ -73,6 +73,8 @@ def task_text(
         "Backlog": backlog or [],
         "InProgress": in_progress or [],
         "InReview": in_review or [],
+        "Acceptance": [],
+        "Gates": [],
         "Candidates": candidates or [],
         "Done": done or [],
     }

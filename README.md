@@ -97,7 +97,9 @@ codex-o /path/to/project
 ## What Happens
 
 When a session starts, AgentOrchestra creates isolated launch material in a
-temporary run directory:
+durable run directory. Set `AGENT_ORCHESTRA_RUN_ROOT` to choose the parent
+directory; otherwise AgentOrchestra uses a user state directory outside the
+target project tree:
 
 - a MainAgent workspace;
 - clean `HOME` and `CODEX_HOME`;
@@ -123,10 +125,60 @@ open work in `[Backlog]`, `[InProgress]`, or `[InReview]` and set
 `[status] progress`.
 
 For open-ended improvement runs, MainAgent should finish only after open work is
-empty and every `[Candidates]` ledger item has an id, summary, completed
-disposition, and evidence pointer. Accepted ProfessionalAgents are marked
-`retired`, sent `/exit`, and their panes are verified or cleaned up before
-completion is reported.
+empty, every `[Acceptance]` item is satisfied, out-of-scope, or deferred with
+evidence, every `[Gates]` item is passed or explicitly non-applicable, and
+every `[Candidates]` ledger item has an id, summary, completed disposition, and
+evidence pointer. Acceptance or gate items marked `blocked` or `needs_user`
+keep the run at `[status] progress` until the external action is resolved or
+the item is explicitly moved out of scope. Accepted ProfessionalAgents are
+marked `retired`, sent `/exit`, and their panes are verified or cleaned up
+before completion is reported.
+
+Missing tools or environment are not a quiet finish condition. Agents are
+expected to try alternate completion routes such as repository-native setup,
+existing Docker compose, ephemeral env/cache directories, CLI/browser/screenshot
+fallbacks, equivalent checks, or a smaller reproducible harness before asking
+the user. If user input is truly required, the task evidence should name the
+attempted routes and the exact credential, approval, network access, service,
+hardware, or scope change needed.
+Requirement documents are resolved case-insensitively and by the user's actual
+paths. A repo with `Spec.md` or `UI.md` must be treated the same as one with
+`SPEC.md`; MainAgent searches for these files before planning or creating the
+acceptance ledger.
+When a browser, GUI, screenshot, or Quick Look route fails with sandbox-style
+permission errors such as `MachPortRendezvous`, `Operation not permitted`,
+`SIGABRT`, or sandbox initialization failure, the owning Agent retries that
+necessary visual evidence command once with
+`sandbox_permissions="require_escalated"` and a narrow justification before
+recording the gate as blocked.
+Browser install, launch, screenshot, Playwright script, and MCP/browser visual
+actions must also have a strict outer wall-clock timeout for the whole route.
+If that timeout fires or a browser launch hangs once, Agents preserve logs,
+record the candidate or gate issue, and switch evidence routes or leave the
+gate failed/blocked instead of starting another unbounded browser run.
+
+For UI/E2E work, Agents record the live server identity in
+`AGENT_ORCHESTRA_SERVER_MANIFEST` or equivalent evidence: base URL, port,
+PID/PGID, and log path. Screenshots, API probes, and network logs must use that
+same base URL, and visual gates include semantic assertions for the required UI
+states, measured viewport evidence, artifact directory, and fit assertions
+rather than relying on nonblank screenshots alone. Stale localhost ports,
+requested/measured viewport mismatches, workspace-only MCP output, MCP approval
+prompts left unresolved, and failed dev-server cleanup stay as gate or candidate
+issues.
+The same manifest and cleanup rule applies to auxiliary E2E services such as
+fake LLM/API servers, local databases, queues, workers, file watchers, secondary
+web servers, and harness listeners. If an unmanifested current-run listener was
+not recorded with PID/PGID, port/base_url, log path, owner, and cleanup command,
+the environment gate remains unresolved.
+
+Cleanup is similarly scoped. Agents should remove only current-run resources
+they created, such as launch-provided cache/artifact/env directories or this
+run's Docker compose project. Unknown untracked files, supervisor status files,
+and `result`/`result-*` symlinks are preserved or recorded as candidates, not
+deleted to make the worktree look cleaner.
+Unknown local artifacts stay outside current-run cleanup unless that run created
+them; unknown local artifacts are not deleted merely to make status clean.
 
 ## Target And Edit Roots
 
@@ -159,7 +211,15 @@ To validate a shared task file before deciding a run is quiet:
 ```sh
 nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
-  --task-file /private/tmp/agent-orchestra/.../tasks.ini
+  --task-file "$AGENT_ORCHESTRA_RUN_DIR/tasks.ini"
+```
+
+To inspect inherited MCP configuration without printing secret env values:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --mcp
 ```
 
 To include Codex CLI's own machine-readable diagnostics:

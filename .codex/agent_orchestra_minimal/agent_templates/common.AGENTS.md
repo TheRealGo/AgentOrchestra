@@ -95,6 +95,8 @@ Runtime側の責務は最小限の機械処理です。
 - role-specific startup `AGENTS.md` を生成する
 - layer `INSTRUCTIONS.md` を専門観点としてstartup `AGENTS.md`へ添付する
 - Skill / Hook を渡す
+- user Codex config の `[mcp_servers.*]` を隔離された `CODEX_HOME` に継承する
+- Agentごとの cache / artifacts / env directory を渡す
 - Codex CLI の `--cd` / `--add-dir` / `--profile` で起動できる最小のenv/command metadataを渡す
 - Stop Hookで止まったAgentを検知する
 - task/stateを見て必要なら固定wakeを送る
@@ -145,21 +147,26 @@ tmux上のCodex CLI paneです。
 
 共有タスクファイルは、Agent判断の代替ではなく、Hookが機械的に継続可否を見るための状態ファイルです。
 
-空の初期化済み task file は、未着手で open work がないことを表す
-`[status] done` で開始する。ユーザー task を受けた後、調査・発見・実装・review
-などの open work が始まる前に、Agent は `[status] progress` に切り替える。
+空の互換 baseline として初期化された task file は、未着手で open work がない
+ことを表す `[status] done` を取り得る。ただし、codex-o MainAgent 起動のように
+ユーザー task を受ける run では `[status] progress` で開始し、調査・発見・実装・
+review などの open work が始まる前に Acceptance/Gates を作る。
 
 初期化直後の基本形:
 
 ```ini
 [status]
-done
+progress
 
 [Backlog]
 
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 
@@ -168,6 +175,10 @@ done
 
 - open workがあるなら `progress`
 - Backlog / InProgress / InReview が空で、Candidatesに未解決候補がなければ `done`
+- Acceptanceはユーザー要求・Spec・issue・design docsから作るrequirement ledger
+- Gatesはvisual、MCP、environment、test、E2Eなどdone前に必要な品質証跡
+- Acceptance/Gatesのopen、failed、blocked、needs_user、必須field不足、未知statusはdone禁止
+- blocked/needs_userは証跡と必要な外部アクションを記録するための未完了状態であり、残っている間は `[status] progress`
 - Doneはopen workではない
 - Candidatesは最終改善候補ledgerであり、missing/open/backlog/未知のdispositionは未解決として扱う
 - 判断はAgentTeamが行い、task fileは状態を表すだけ
@@ -181,6 +192,26 @@ done
 `python3 -m py_compile`、`git diff --check`、Nix checksを使います。
 `pytest` は標準依存ではないため、ユーザーが明示した場合、または
 利用可能性を先に確認して必要性がある場合以外は実行しないでください。
+UI要件またはUI変更があるrunではdev serverを起動し、ユーザー/Spec/UI文書/
+対象プラットフォームが要求するviewportや利用環境でスクリーンショット、URL、
+console/network evidenceを`[Gates]`に残します。要件にviewportや端末種別が
+ない場合は対象プロダクトの文書化/実装済みの主要利用環境から検証環境を導き、
+その根拠をgate evidenceに残します。desktop、mobile、responsive、小画面など
+要件外の端末対応は改善候補として記録できても、勝手に実装対象や完了ゲートへ
+入れてはいけません。
+Playwright MCP不在だけを理由にUI視認を省略してはいけません。
+環境、MCP、ツール、依存、dev server、Docker、credential、network access
+が足りないだけで終わってはいけません。repo標準手順、既存Docker compose、
+ephemeral env/cache、Playwright CLI、Browser/screenshot、API/log probe、
+同等の再現ハーネスなど、要件を検証できる別経路を試すか明示的に棄却して
+ください。自律的に試せる経路が残る限り `[status] progress` を保ちます。
+本当にユーザー入力が必要な場合だけ `needs_user` / `blocked` とし、試した
+経路、証跡、ユーザーに必要なcredential/approval/network/service/hardware/
+scope変更を具体的に記録します。
+cleanupは現在runが作ったものに限定します。`git status`に出ているだけの
+untracked file、symlink、directory、supervisor status file、`result` /
+`result-*` Nix symlinkを削除してはいけません。不明なlocal artifactは削除
+ではなくcandidate/evidenceとして記録します。
 
 ## 止まってよい条件
 

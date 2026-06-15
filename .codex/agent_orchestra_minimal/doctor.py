@@ -3,15 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from .codex_config import inspect_mcp_inheritance, mcp_command_by_server
 from .codex_features import run_codex_features_list
 from .prepare_agent_launch import run_probe
+from .server_process_runtime import alive, read_manifest
 from .task_file import SharedTaskFile
+
+
+SECRET_ASSIGNMENT = re.compile(r"\b((?:[A-Za-z0-9_]*_)?token)=([^\s,)]+)", re.IGNORECASE)
 
 
 def doctor_command(args: argparse.Namespace) -> int:
@@ -24,8 +30,8 @@ def doctor_command(args: argparse.Namespace) -> int:
     for command in ("codex", "tmux"):
         if not command_available(command):
             failures.append(f"required command is not available on PATH: {command}")
-    if "TMUX" not in os.environ and not args.tui_transport:
-        failures.append("not running inside tmux")
+    if "TMUX" not in os.environ and args.tui_transport:
+        failures.append("not running inside tmux for --tui-transport")
 
     if failures:
         print("agent-orchestra doctor: failed", file=sys.stderr)
@@ -58,8 +64,26 @@ def doctor_command(args: argparse.Namespace) -> int:
             return 1
         for line in report.lines:
             print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if getattr(args, "mcp", False):
+        report = inspect_mcp(command_checker=command_available)
+        if report.failed:
+            print("agent-orchestra doctor: failed", file=sys.stderr)
+            for line in report.lines:
+                print(f"- {line}", file=sys.stderr)
+            return 1
+        for line in report.lines:
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
     if task_file_path := getattr(args, "task_file", None):
         report = inspect_task_file(Path(task_file_path).expanduser())
+        if report.failed:
+            print("agent-orchestra doctor: failed", file=sys.stderr)
+            for line in report.lines:
+                print(f"- {line}", file=sys.stderr)
+            return 1
+        for line in report.lines:
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if getattr(args, "server_processes", False):
+        report = inspect_server_processes(Path(args.server_process_root).expanduser())
         if report.failed:
             print("agent-orchestra doctor: failed", file=sys.stderr)
             for line in report.lines:
@@ -95,6 +119,18 @@ class TaskFileDoctorReport:
         self.lines = lines
 
 
+class McpDoctorReport:
+    def __init__(self, *, failed: bool, lines: list[str]) -> None:
+        self.failed = failed
+        self.lines = lines
+
+
+class ServerProcessDoctorReport:
+    def __init__(self, *, failed: bool, lines: list[str]) -> None:
+        self.failed = failed
+        self.lines = lines
+
+
 def inspect_task_file(path: Path) -> TaskFileDoctorReport:
     try:
         task_file = SharedTaskFile.read(path)
@@ -113,6 +149,72 @@ def inspect_task_file(path: Path) -> TaskFileDoctorReport:
         failed=False,
         lines=[f"shared task file finalized: {path}"],
     )
+
+
+def inspect_mcp(*, command_checker: Any = command_available) -> McpDoctorReport:
+    inheritance = inspect_mcp_inheritance()
+    if not inheritance.enabled:
+        return McpDoctorReport(False, ["MCP inheritance disabled by environment"])
+    if inheritance.error:
+        return McpDoctorReport(True, [f"MCP config invalid: {inheritance.source_config}: {inheritance.error}"])
+    source = str(inheritance.source_config) if inheritance.source_config else "not found"
+    servers = ", ".join(inheritance.servers) if inheritance.servers else "(none)"
+    lines = [
+        f"MCP source config: {source}",
+        f"MCP servers: {servers}",
+        f"Playwright MCP: {'present' if inheritance.playwright_present else 'absent'}",
+    ]
+    failed = False
+    commands = mcp_command_by_server(inheritance.source_config)
+    for server in inheritance.servers:
+        command = commands.get(server, "")
+        if not command:
+            continue
+        name = Path(command).name
+        available = command_checker(command)
+        failed = failed or not available
+        lines.append(f"MCP command {server}: {name} {'available' if available else 'missing'}")
+    return McpDoctorReport(failed=failed, lines=lines)
+
+
+def inspect_server_processes(root: Path, *, alive_checker: Any = alive) -> ServerProcessDoctorReport:
+    if not root.exists():
+        return ServerProcessDoctorReport(False, [f"server process root not found: {root}"])
+    if not root.is_dir():
+        return ServerProcessDoctorReport(True, [f"server process root is not a directory: {root}"])
+
+    live_entries: list[str] = []
+    unreadable: list[str] = []
+    manifests = sorted(root.glob("**/server-processes.json"))
+    for manifest in manifests:
+        try:
+            data = read_manifest(manifest)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            unreadable.append(f"{manifest}: {exc}")
+            continue
+        for name, server_entry in sorted(data.items()):
+            if not isinstance(server_entry, dict):
+                continue
+            if server_entry.get("status") not in {"running", "starting"}:
+                continue
+            pid = int(server_entry.get("pid") or 0)
+            if pid <= 0 or not alive_checker(pid):
+                continue
+            base_url = str(server_entry.get("base_url") or "")
+            live_entries.append(
+                f"{manifest}: {name} status={server_entry.get('status')} pid={pid} base_url={base_url}"
+            )
+
+    lines = [f"server process manifests scanned: {len(manifests)} under {root}"]
+    if unreadable:
+        lines.append("unreadable server process manifests:")
+        lines.extend(f"  {item}" for item in unreadable)
+    if live_entries:
+        lines.append("live server processes remain:")
+        lines.extend(f"  {item}" for item in live_entries)
+    if len(lines) == 1:
+        lines.append("no live server processes recorded")
+    return ServerProcessDoctorReport(failed=bool(unreadable or live_entries), lines=lines)
 
 
 def run_codex_doctor(
@@ -179,11 +281,11 @@ def summarize_codex_doctor(payload: dict[str, Any], *, returncode: int) -> Codex
             if check_status in {"ok", "idle"}:
                 continue
             category = str(check.get("category", "unknown"))
-            summary = str(check.get("summary", "")).strip()
+            summary = _redact_diagnostic_text(str(check.get("summary", "")).strip())
             line = f"Codex doctor {check_status}: {category}/{check_id}"
             if summary:
                 line = f"{line}: {summary}"
-            remediation = str(check.get("remediation", "") or "").strip()
+            remediation = _redact_diagnostic_text(str(check.get("remediation", "") or "").strip())
             if remediation:
                 line = f"{line} ({remediation})"
             lines.append(line)
@@ -191,3 +293,7 @@ def summarize_codex_doctor(payload: dict[str, Any], *, returncode: int) -> Codex
     if len(lines) == 1 and status == "ok":
         lines[0] = f"Codex doctor ok version={version}"
     return CodexDoctorReport(failed=failed, lines=lines)
+
+
+def _redact_diagnostic_text(text: str) -> str:
+    return SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", text)

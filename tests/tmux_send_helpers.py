@@ -8,7 +8,7 @@ class FakeTmuxSend:
         self,
         captures: list[str],
         *,
-        baseline_capture: str | None = "› Find and fix a bug in @filename\n",
+        baseline_capture: str | list[str] | None = "› Find and fix a bug in @filename\n",
     ) -> None:
         self.captures = captures
         self.baseline_capture = baseline_capture
@@ -23,7 +23,10 @@ class FakeTmuxSend:
             self.paste_seen = True
         if args[:2] == ["tmux", "capture-pane"]:
             if not self.paste_seen and self.baseline_capture is not None:
-                stdout = self.baseline_capture
+                if isinstance(self.baseline_capture, list):
+                    stdout = self.baseline_capture.pop(0) if self.baseline_capture else ""
+                else:
+                    stdout = self.baseline_capture
             else:
                 stdout = self.captures.pop(0) if self.captures else ""
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")

@@ -108,7 +108,7 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
-        self.assertEqual(len(send_key_calls), 2)
+        self.assertEqual(len(send_key_calls), 3)
 
     def test_fresh_capture_requirement_rejects_stale_identical_history(self) -> None:
         message = "MainAgent: please review the final change set"
@@ -237,6 +237,54 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         )
 
         self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 1)
+
+    def test_send_text_waits_instead_of_pasting_into_model_selection_menu(self) -> None:
+        baseline = (
+            "› 1. Switch to gpt-5.4-… Small, fast,\n"
+            "                         and cost-\n"
+            "                         efficient\n\n"
+            "  Press enter to confirm or esc to go back\n"
+        )
+        fake = FakeTmuxSend(captures=[], baseline_capture=baseline)
+
+        result = send_text(
+            "%8",
+            "MainAgent -> pro-runtime: final review request",
+            runner=fake,
+            max_retries=0,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.attempts, 0)
+
+    def test_send_text_accepts_when_message_started_before_later_model_menu(self) -> None:
+        message = "MainAgent -> pro-frontend-ui: review UI evidence"
+        fake = FakeTmuxSend(
+            captures=[
+                f"› {message}\n",
+                (
+                    "• Working\n\n"
+                    "─ Worked for 1m 01s ────────────────────\n\n"
+                    "› 1. Switch to gpt-5.4-… Small, fast,\n"
+                    "                         and cost-efficient\n\n"
+                    "  Press enter to confirm or esc to go back\n"
+                ),
+            ],
+            baseline_capture="› Write tests for @filename\n",
+        )
+
+        result = send_text(
+            "%8",
+            message,
+            runner=fake,
+            max_retries=0,
+            poll_interval_seconds=0,
+            polls_per_attempt=2,
+        )
+
+        self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
 
 

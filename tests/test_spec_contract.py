@@ -73,7 +73,9 @@ class SpecContractTests(unittest.TestCase):
             "defaulting to `C-m`",
             "Runtime must not own ProfessionalAgent pane scheduling",
             "Every run has a single shared task file",
-            "Each required section must appear exactly once",
+            "The required structural sections",
+            "must appear exactly once",
+            "legacy task files that omit them are parsed as empty ledgers",
             "Duplicate or unknown sections are invalid",
             "If the task file is missing, unreadable, or invalid",
             "Agent stopping is detected by Codex official Hooks",
@@ -169,6 +171,11 @@ class SpecContractTests(unittest.TestCase):
             spec_normalized,
         )
         self.assertIn("missing, `open`, `backlog`, or unrecognized", spec_normalized)
+        self.assertIn("For `kind=visual`, `status=passed` is finalizable only", spec_normalized)
+        self.assertIn("viewport or environment set derived from the user, Spec, UI/design docs", spec_normalized)
+        self.assertIn("derive the primary verification environment from the product's documented or implemented use case", spec_normalized)
+        self.assertIn("Desktop, mobile, responsive, small-screen, or other platform coverage is required only when it is in scope", spec_normalized)
+        self.assertIn("must not become implementation scope or a completion gate", spec_normalized)
 
     def test_spec_requires_team_sufficiency_not_blanket_launching(self) -> None:
         spec = " ".join((ROOT / "SPEC.md").read_text(encoding="utf-8").split())
@@ -198,6 +205,8 @@ class SpecContractTests(unittest.TestCase):
             "user explicitly instructs MainAgent to leave the orchestra with `/exit`",
             "tmux Main Skill self-exit procedure as its final tool action",
             "report an explicit self-exit failure",
+            "persistent goal completion message, or idle prompt is not a substitute",
+            "the MainAgent pane must actually leave",
             "The standard Python verification runner is `unittest`, not `pytest`",
             "`pytest` is not a project dependency",
         ]
@@ -251,8 +260,14 @@ class SpecContractTests(unittest.TestCase):
             "pane cleanup verified before MainAgent reports completion",
             "user-requested MainAgent self-exit uses the tmux Main Skill self-exit procedure",
             "reports explicit failure if it cannot submit `/exit`",
+            "not replaced by a normal completion report or persistent-goal completion message",
             "verification uses `unittest`, direct Python `py_compile`, `git diff --check`",
             "path-form Nix checks",
+            "missing environment, MCP, tool, Docker, browser, credential, network, or service prerequisites",
+            "alternate completion routes",
+            "concrete `needs_user` request",
+            "cleanup preserves unknown untracked files",
+            "`result`/`result-*` symlinks",
         ]
         for phrase in required_phrases:
             self.assertIn(phrase, spec)

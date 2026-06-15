@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 import sys
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +19,17 @@ from agent_orchestra_minimal.launch_material import prepare_launch_material  # n
 
 
 class LaunchMaterialContractTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.env_patcher = patch.dict(
+            os.environ,
+            {"AGENT_ORCHESTRA_REPO_ROOT": str(ROOT), "AGENT_ORCHESTRA_TUI_SUBMIT_KEY": ""},
+            clear=False,
+        )
+        self.env_patcher.start()
+
+    def tearDown(self) -> None:
+        self.env_patcher.stop()
+
     def test_start_cli_prepares_main_agent_launch_material(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_main_material(
@@ -42,6 +55,8 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertEqual(material.command["config_profile"], "agent-orchestra")
             self.assertNotIn("config_profile_v2", material.command)
             self.assertIn("--ask-for-approval", material.command["argv"])
+            approval_index = material.command["argv"].index("--ask-for-approval")
+            self.assertEqual(material.command["argv"][approval_index + 1], "on-request")
             self.assertIn("--sandbox", material.command["argv"])
             self.assertIn("--enable", material.command["argv"])
             self.assertIn("--cd", material.command["argv"])
@@ -50,7 +65,10 @@ class LaunchMaterialContractTests(unittest.TestCase):
             add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
             self.assertEqual(add_dirs[0], str(ROOT))
             self.assertEqual(material.env["AGENT_ORCHESTRA_TARGET_PROJECT"], str(ROOT))
-            self.assertEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], add_dirs[-1])
+            self.assertIn(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], add_dirs)
+            self.assertNotEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], str(material.run_dir))
+            self.assertEqual(material.command["runtime_access_roots"], [str(material.run_dir)])
+            self.assertIn(str(material.run_dir), add_dirs)
             self.assertNotIn(
                 "Start the agent-orchestra MainAgent run using the loaded AGENTS.md instructions.",
                 material.command["argv"],
@@ -60,7 +78,7 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertNotIn("User task:", startup)
             self.assertNotIn("No task has been provided yet", startup)
 
-    def test_main_agent_startup_has_no_open_work_or_task_context(self) -> None:
+    def test_main_agent_startup_uses_progress_task_baseline_without_task_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             material = prepare_main_material(
                 target_project=ROOT,
@@ -73,7 +91,7 @@ class LaunchMaterialContractTests(unittest.TestCase):
             agent_state = AgentState.read(material.state_file)
             startup = material.startup_agents.read_text(encoding="utf-8")
 
-            self.assertEqual(task_file.status, "done")
+            self.assertEqual(task_file.status, "progress")
             self.assertFalse(task_file.has_open_work)
             self.assertEqual(agent_state.state, "ready")
             self.assertNotIn("Current Run Context", startup)
@@ -174,7 +192,8 @@ class LaunchMaterialContractTests(unittest.TestCase):
 
             argv = list(material.command["argv"])
             add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
-            self.assertEqual(add_dirs, [str(target), str(root)])
+            self.assertEqual(add_dirs[:2], [str(target), str(root)])
+            self.assertIn(str(material.run_dir), add_dirs)
             self.assertEqual(material.env["AGENT_ORCHESTRA_TARGET_PROJECT"], str(target))
             self.assertEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], str(root))
             self.assertIn(str(root), material.env["AGENT_ORCHESTRA_ACCESS_ROOTS"])

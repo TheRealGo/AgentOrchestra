@@ -39,7 +39,7 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             )
 
             config = material.config_path.read_text(encoding="utf-8")
-            self.assertEqual(material.config_path.name, "agent-orchestra.config.toml")
+            self.assertEqual(material.config_path.name, "config.toml")
             self.assertIn(f'[projects."{material.workspace}"]', config)
             self.assertIn('trust_level = "trusted"', config)
             self.assertIn("[[hooks.Stop]]", config)
@@ -57,6 +57,7 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             for skill in (
                 "agent-orchestra-launch",
                 "agent-orchestra-release",
+                "agent-orchestra-environment",
                 "agent-orchestra-task-file",
                 "agent-orchestra-team",
                 "agent-orchestra-tmux-common",
@@ -66,33 +67,44 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
 
     def test_launch_material_env_and_command_do_not_launch_or_use_codex_exec(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            material = prepare_launch_material(
-                run_dir=Path(tmpdir) / "run",
-                agent_id="pro-docs",
-                agent_kind="ProfessionalAgent",
-                target_project=ROOT,
-                instruction_text="Docs instruction.",
-            )
+            with patch.dict(os.environ, {"AGENT_ORCHESTRA_TUI_SUBMIT_KEY": ""}, clear=False):
+                material = prepare_launch_material(
+                    run_dir=Path(tmpdir) / "run",
+                    agent_id="pro-docs",
+                    agent_kind="ProfessionalAgent",
+                    target_project=ROOT,
+                    instruction_text="Docs instruction.",
+                )
 
             env = json.loads(material.env_path.read_text(encoding="utf-8"))
             env_shell = material.env_shell_path.read_text(encoding="utf-8")
             self.assertEqual(env["HOME"], str(material.home))
             self.assertEqual(env["CODEX_HOME"], str(material.codex_home))
+            self.assertEqual(env["PATH"], os.environ.get("PATH", os.defpath))
             self.assertEqual(env["AGENT_ORCHESTRA_AGENT_DIR"], str(material.state_file.parent))
             self.assertEqual(env["AGENT_ORCHESTRA_RUN_DIR"], str(material.run_dir))
             self.assertEqual(env["AGENT_ORCHESTRA_AGENT_STATE"], str(material.state_file))
             self.assertEqual(env["AGENT_ORCHESTRA_TASK_FILE"], str(material.task_file))
+            self.assertEqual(env["AGENT_ORCHESTRA_CACHE_DIR"], str(material.cache_dir))
+            self.assertEqual(env["AGENT_ORCHESTRA_ARTIFACT_DIR"], str(material.artifact_dir))
+            self.assertEqual(env["AGENT_ORCHESTRA_ENV_DIR"], str(material.environment_dir))
+            self.assertEqual(env["AGENT_ORCHESTRA_SERVER_MANIFEST"], str(material.environment_dir / "server-processes.json"))
+            self.assertEqual(env["AGENT_ORCHESTRA_MCP_SOURCE_CONFIG"], str(material.config_path))
             self.assertEqual(env["AGENT_ORCHESTRA_PYTHON"], sys.executable)
             self.assertEqual(env["AGENT_ORCHESTRA_TUI_SUBMIT_KEY"], "C-m")
             self.assertIn(f"export HOME={material.home}", env_shell)
             self.assertIn(f"export CODEX_HOME={material.codex_home}", env_shell)
             self.assertIn(f"export AGENT_ORCHESTRA_AGENT_ID={material.agent_id}", env_shell)
+            self.assertIn(f"export AGENT_ORCHESTRA_ARTIFACT_DIR={material.artifact_dir}", env_shell)
+            self.assertIn(f"export AGENT_ORCHESTRA_SERVER_MANIFEST={material.environment_dir / 'server-processes.json'}", env_shell)
+            self.assertIn(f"export AGENT_ORCHESTRA_MCP_SOURCE_CONFIG={material.config_path}", env_shell)
             self.assertIn(f"export AGENT_ORCHESTRA_PYTHON={sys.executable}", env_shell)
             self.assertIn("export AGENT_ORCHESTRA_TUI_SUBMIT_KEY=C-m", env_shell)
 
             command = json.loads(material.command_path.read_text(encoding="utf-8"))
             argv = command["argv"]
             self.assertEqual(argv[0], "codex")
+            self.assertEqual(command["env_json_file"], str(material.env_path))
             self.assertEqual(command["env_shell_file"], str(material.env_shell_path))
             self.assertIn("--profile", argv)
             profile_index = argv.index("--profile")
@@ -102,7 +114,9 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             self.assertEqual(command["config_profile"], "agent-orchestra")
             self.assertNotIn("config_profile_v2", command)
             self.assertIn("--ask-for-approval", argv)
-            self.assertIn("never", argv)
+            approval_index = argv.index("--ask-for-approval")
+            self.assertEqual(argv[approval_index + 1], "on-request")
+            self.assertNotIn("never", argv)
             self.assertIn("--sandbox", argv)
             self.assertIn("workspace-write", argv)
             self.assertIn("--enable", argv)
@@ -135,6 +149,9 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
                 material.workspace,
                 material.home,
                 material.codex_home,
+                material.cache_dir,
+                material.artifact_dir,
+                material.environment_dir,
                 material.codex_home / "hooks",
                 material.codex_home / "skills",
                 material.codex_home / "agent_orchestra_minimal",

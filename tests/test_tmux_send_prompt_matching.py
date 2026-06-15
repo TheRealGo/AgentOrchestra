@@ -31,7 +31,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
-        self.assertEqual(len(send_key_calls), 2)
+        self.assertEqual(len(send_key_calls), 3)
 
     def test_send_text_accepts_very_narrow_wrapped_prompt_when_agent_activity_follows(self) -> None:
         message = (
@@ -62,7 +62,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
-        self.assertEqual(len(send_key_calls), 1)
+        self.assertEqual(len(send_key_calls), 2)
 
     def test_send_text_fails_when_probe_scrolled_out_and_only_prompt_tail_working_remains(self) -> None:
         message = "MainAgent: " + " ".join(f"token{i}" for i in range(30))
@@ -79,7 +79,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 3)
-        self.assertEqual(len(send_key_calls), 3)
+        self.assertEqual(len(send_key_calls), 4)
 
     def test_send_text_retries_when_message_visible_without_agent_activity(self) -> None:
         fake = FakeTmuxSend(
@@ -99,7 +99,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
-        self.assertEqual(len(send_key_calls), 2)
+        self.assertEqual(len(send_key_calls), 3)
 
     def test_send_text_accepts_prompt_history_when_agent_activity_follows(self) -> None:
         message = "MainAgent: please review the final change set"
@@ -114,7 +114,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
-        self.assertEqual(len(send_key_calls), 1)
+        self.assertEqual(len(send_key_calls), 2)
 
     def test_send_text_does_not_accept_old_activity_before_visible_message(self) -> None:
         message = "MainAgent: please review the final change set"

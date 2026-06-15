@@ -73,6 +73,22 @@ class TmuxDeliveryPromptStatusTests(unittest.TestCase):
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
 
+    def test_accepts_long_agent_prompt_started_even_when_probe_tail_scrolled_out(self) -> None:
+        message = (
+            "MainAgent -> pro-ui: Review the AgenticRAG visual gate evidence and "
+            "raise any blocking objection before finalization."
+        )
+        capture = (
+            "› MainAgent -> pro-ui: Review the AgenticRAG visual gate evidence\n\n"
+            "• Working\n"
+        )
+        fake = FakeTmuxSend(captures=[capture], baseline_capture="› Find and fix a bug in @filename\n")
+
+        result = send_text("%8", message, runner=fake, max_retries=0, poll_interval_seconds=0)
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+
     def test_does_not_accept_stale_message_with_same_short_prefix(self) -> None:
         message = "MainAgent: please review the final-new change set for candidate delivery-probe"
         fake = FakeTmuxSend(

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
-from agent_orchestra_minimal.cli import current_tmux_pane  # noqa: E402
+from agent_orchestra_minimal.cli import current_tmux_pane, default_run_dir, default_run_root, start_main  # noqa: E402
 from agent_orchestra_minimal.codex_features import CodexFeatureReport  # noqa: E402
 from agent_orchestra_minimal.launch_args import codex_launch_argv, main_tmux_pane  # noqa: E402
 from agent_orchestra_minimal.launch_args import _codex_supports_prevent_idle_sleep  # noqa: E402
@@ -119,21 +119,87 @@ class LaunchArgsTests(unittest.TestCase):
         self.assertIn("model_reasoning_effort=high", argv)
         self.assertIn("-c=model_reasoning_effort=high", argv)
 
+    def test_default_run_root_uses_explicit_environment_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            configured = Path(tmpdir) / "durable-runs"
+            with patch.dict(os.environ, {"AGENT_ORCHESTRA_RUN_ROOT": str(configured)}, clear=False):
+                self.assertEqual(default_run_root(), configured)
+                self.assertEqual(default_run_dir().parent, configured)
+
+    def test_default_run_root_avoids_tmp_without_override(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            root = default_run_root()
+
+        self.assertNotIn("/tmp", str(root))
+        self.assertNotIn("/private/tmp", str(root))
+        self.assertTrue(default_run_dir().name.endswith("-agent-orchestra"))
+
+    def test_start_main_does_not_pass_secret_parent_environment_to_codex(self) -> None:
+        class Material:
+            run_dir = Path("/run")
+            workspace = Path("/")
+            env = {"CODEX_HOME": "/isolated/codex", "AGENT_ORCHESTRA_AGENT_ID": "main"}
+            command = {"argv": ["codex", "--version"]}
+
+        args = type(
+            "Args",
+            (),
+            {
+                "target_project": str(ROOT),
+                "target_project_arg": None,
+                "run_dir": str(ROOT / ".tmp" / "run"),
+                "agent_id": "main",
+                "dry_run": False,
+            },
+        )()
+        captured: dict[str, dict[str, str]] = {}
+
+        def fake_execvpe(_program: str, _argv: list[str], env: dict[str, str]) -> None:
+            captured["env"] = env
+            raise SystemExit(0)
+
+        with patch.dict(os.environ, {"PATH": "/bin", "GITHUB_TOKEN": "secret", "OPENAI_API_KEY": "secret"}, clear=True):
+            with patch("agent_orchestra_minimal.cli.current_tmux_pane", return_value="%1"):
+                with patch("agent_orchestra_minimal.cli.prepare_main_material", return_value=Material()):
+                    with patch("agent_orchestra_minimal.cli.os.chdir"):
+                        with patch("agent_orchestra_minimal.cli.os.execvpe", side_effect=fake_execvpe):
+                            with self.assertRaises(SystemExit):
+                                start_main(args)
+
+        self.assertEqual(captured["env"]["PATH"], "/bin")
+        self.assertEqual(captured["env"]["CODEX_HOME"], "/isolated/codex")
+        self.assertNotIn("GITHUB_TOKEN", captured["env"])
+        self.assertNotIn("OPENAI_API_KEY", captured["env"])
+
     def test_launch_argv_enables_prevent_idle_sleep_when_codex_feature_exists(self) -> None:
         report = CodexFeatureReport(
             failed=False,
             features={"prevent_idle_sleep": "disabled"},
             lines=["Codex features prevent_idle_sleep=disabled"],
         )
-        with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
-            argv = codex_launch_argv(
-                "codex",
-                workspace="/tmp/workspace",
-                target_project=str(ROOT),
-            )
+        with patch.dict(os.environ, {"AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP": ""}, clear=False):
+            with patch("agent_orchestra_minimal.launch_args.run_codex_features_list", return_value=report):
+                argv = codex_launch_argv(
+                    "codex",
+                    workspace="/tmp/workspace",
+                    target_project=str(ROOT),
+                )
 
         self.assertIn("--enable", argv)
         self.assertIn("prevent_idle_sleep", argv)
+
+    def test_launch_argv_adds_runtime_roots_without_changing_edit_roots(self) -> None:
+        argv = codex_launch_argv(
+            "codex",
+            workspace="/run/agents/main/workspace",
+            target_project="/repo",
+            access_roots=("/repo", "/repo-root"),
+            runtime_roots=("/run", "/repo"),
+            auto_enable_prevent_idle_sleep=False,
+        )
+
+        add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
+        self.assertEqual(add_dirs, ["/repo", "/repo-root", "/run"])
 
     def test_launch_argv_does_not_enable_prevent_idle_sleep_when_feature_probe_fails(self) -> None:
         report = CodexFeatureReport(

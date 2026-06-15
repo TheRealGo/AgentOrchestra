@@ -97,8 +97,9 @@ codex-o /path/to/project
 
 ## 起動すると何が起きるか
 
-AgentOrchestra は一時ディレクトリに、Agent ごとの隔離された起動素材を作り
-ます。
+AgentOrchestra は永続的な run directory に、Agent ごとの隔離された起動素
+材を作ります。親ディレクトリは `AGENT_ORCHESTRA_RUN_ROOT` で指定でき、省
+略時は対象プロジェクト外のユーザー state directory を使います。
 
 - MainAgent 用 workspace
 - clean な `HOME` と `CODEX_HOME`
@@ -124,10 +125,49 @@ Agent は `[Backlog]`、`[InProgress]`、`[InReview]` に open work を記録し
 `[status] progress` に切り替えます。
 
 改善点がなくなるまで続ける run では、MainAgent は open work が空で、
+`[Acceptance]` の各項目が satisfied / out-of-scope / deferred のいずれかで
+evidence 付き、`[Gates]` の各項目が passed または明示的な non-applicable、
+さらに
 `[Candidates]` ledger の各項目に id、summary、完了 disposition、evidence
-pointer が入っている場合だけ完了できます。受け入れ済みの ProfessionalAgent
+pointer が入っている場合だけ完了できます。Acceptance/Gates の
+blocked/needs_user は外部アクション待ちの未完了状態であり、残っている間は
+`[status] progress` のままです。受け入れ済みの ProfessionalAgent
 は `retired` にし、`/exit` を送り、pane が閉じたことを確認または cleanup
 してから完了報告します。
+
+ツールや環境が足りないだけでは静かに終了できません。Agent は repo 標準手順、
+既存 Docker compose、ephemeral env/cache、CLI/browser/screenshot fallback、
+同等の検証、または小さな再現ハーネスなど、完成に向かう別経路を試してから
+ユーザーに依頼します。本当にユーザー入力が必要な場合は、試した経路と、
+必要な credential、approval、network access、service、hardware、scope 変更を
+task evidence に具体的に残します。
+要件文書は大文字小文字を区別せず、ユーザーが示した実際の path を優先して
+解決します。`Spec.md` や `UI.md` がある repo は `SPEC.md` と同じように扱い、
+MainAgent は計画や acceptance ledger 作成の前にそれらを探索して読みます。
+Browser install、launch、screenshot、Playwright script、MCP/browser visual
+action は、経路全体に strict な outer wall-clock timeout を設定します。
+timeout したり browser launch が一度 hang した場合、Agent は log を保存し、
+candidate または gate issue として記録し、別の evidence route に切り替えるか
+gate failed/blocked として残します。unbounded な browser retry は行いません。
+
+UI/E2E では、Agent は `AGENT_ORCHESTRA_SERVER_MANIFEST` または同等の evidence
+に live server の base URL、port、PID/PGID、log path を残します。screenshot、
+API probe、network log は同じ base URL を使い、visual gate には単に非 blank な
+画像だけでなく、要求された UI 状態の semantic assertion、実測 viewport、
+artifact directory、fit assertion を含めます。古い localhost port、
+要求/実測 viewport の不一致、workspace に残っただけの MCP 出力、未解決の
+MCP approval prompt、dev server cleanup 失敗は gate または candidate issue
+として残ります。
+同じ manifest/cleanup ルールは fake LLM/API server、local database、queue、
+worker、file watcher、secondary web server、harness listener などの補助
+E2E service にも適用します。current-run listener が PID/PGID、port/base URL、
+log path、owner、cleanup command とともに記録されていなければ、environment
+gate は未解決のままです。
+
+cleanup も現在 run が作ったものに限定します。launch-provided cache/artifact/env
+directory やその run の Docker compose project は片付けてよい一方で、不明な
+untracked file、supervisor status file、`result` / `result-*` symlink は
+worktree を綺麗に見せる目的で削除せず、candidate/evidence として扱います。
 
 ## Target と edit root
 
@@ -161,7 +201,15 @@ run が quiet か判断する前に shared task file を検査する場合:
 ```sh
 nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
   --target-project /path/to/project \
-  --task-file /private/tmp/agent-orchestra/.../tasks.ini
+  --task-file "$AGENT_ORCHESTRA_RUN_DIR/tasks.ini"
+```
+
+secret env 値を出力せずに継承 MCP 設定を確認する場合:
+
+```sh
+nix run github:TheRealGo/AgentOrchestra#agent-orchestra -- doctor \
+  --target-project /path/to/project \
+  --mcp
 ```
 
 Codex CLI 自体の machine-readable diagnostics も確認する場合:

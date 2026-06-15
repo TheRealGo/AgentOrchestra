@@ -1,6 +1,6 @@
 ---
 name: agent-orchestra-task-file
-description: Maintain the shared agent-orchestra task file so Hook-driven re-kick behavior follows deterministic progress/done and Backlog/InProgress/InReview/Candidates/Done state.
+description: Maintain the shared agent-orchestra task file so Hook-driven re-kick behavior follows deterministic progress/done and Backlog/InProgress/InReview/Acceptance/Gates/Candidates/Done state.
 ---
 
 # agent-orchestra Task File Skill
@@ -11,14 +11,16 @@ re-kicked after stopping.
 
 ## Shape
 
-The runtime initializes a quiet empty task file with `[status] done`. Once an
-Agent accepts a user task or begins discovery, investigation, implementation,
-or review work, it must switch the file to `[status] progress` before doing
-substantial work.
+The low-level runtime can initialize a quiet empty task file with
+`[status] done` for backward compatibility, but a MainAgent run that is
+receiving a user task starts and stays `[status] progress` until the first
+Acceptance/Gates ledger exists and all work is truly resolved. Once an Agent
+accepts a user task or begins discovery, investigation, implementation, or
+review work, it must keep `[status] progress` before doing substantial work.
 
 ```ini
 [status]
-done
+progress
 
 [Backlog]
 
@@ -26,12 +28,20 @@ done
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 
 [Done]
 ```
 
 `[status]` is either `progress` or `done`.
+Newly initialized task files include `[Acceptance]` and `[Gates]`. Legacy task
+files that omit those two sections are parsed as empty acceptance/gate ledgers
+for backward compatibility; do not "fix" that compatibility by making old task
+files invalid.
 
 Open work is any item in `[Backlog]`, `[InProgress]`, or `[InReview]`.
 `[Done]` does not count as open work.
@@ -42,17 +52,42 @@ Open work is any item in `[Backlog]`, `[InProgress]`, or `[InReview]`.
 - Move active work from `[Backlog]` to `[InProgress]`.
 - Move work awaiting Team or peer review to `[InReview]`.
 - Move accepted work to `[Done]`.
+- Preserve existing run-level `[Acceptance]`, `[Gates]`, and `[Candidates]`
+  entries when adding or updating scoped work. Do not replace the shared task
+  file with a narrower review-only, specialist-only, or cycle-only ledger.
+- Before every write, re-read the current shared task file and merge your scoped
+  change into the latest `[Acceptance]`, `[Gates]`, `[Candidates]`, and open
+  work sections. Do not write from a stale captured copy. If another Agent's
+  item disappears or reverts after your edit, treat that as a task-file merge
+  race: re-read, restore the other Agent's latest state, record the race as a
+  `[Candidates]` issue, and retry the minimal scoped update.
+- Never "simplify" the shared file by regenerating it from your local notes.
+  Update only the lines or section entries you own, then immediately re-read the
+  file to verify that unrelated acceptance, gate, candidate, and peer state
+  entries survived.
 - Set `[status]` to `progress` whenever open work exists or discovery is still
   active.
 - Set `[status]` to `done` only after `[Backlog]`, `[InProgress]`, and
-  `[InReview]` are empty and every `[Candidates]` item has a completed
-  disposition.
+  `[InReview]` are empty; every `[Acceptance]` item is satisfied,
+  out-of-scope, or deferred with required fields and evidence; every `[Gates]`
+  item is passed or not-applicable with evidence; and every `[Candidates]` item
+  has a completed disposition.
+  `blocked` and `needs_user` are documented non-completion states. They keep
+  `[status] progress` until the external action is resolved or the item is
+  explicitly moved out of scope.
 - Finalize in this order: first move accepted or deferred items out of open
   sections, then verify `[Backlog]`, `[InProgress]`, and `[InReview]` are empty,
-  then verify the `[Candidates]` ledger, and only then write `[status] done`.
+  then verify `[Acceptance]`, `[Gates]`, and `[Candidates]`, and only then write
+  `[status] done`.
+- When review evidence shows zero remaining issues, finalization must be the
+  next state update. Move accepted review items from `[InReview]` to `[Done]`,
+  resolve the run-level `[Acceptance]`, `[Gates]`, and `[Candidates]` ledgers
+  with evidence, then write `[status] done` in the same update pass. Do not
+  leave a finalizable task file at `[status] progress` waiting for another wake,
+  peer nudge, or user reminder.
 - Never write `[status] done` while any real open item remains. `done` with
-  open work or unresolved candidates is a Hook re-kick condition, not a normal
-  intermediate state.
+  open work or unresolved acceptance, gates, or candidates is a Hook re-kick
+  condition, not a normal intermediate state.
 - Do not stop, mark a goal `blocked`, or leave the run awaiting Hook wake while
   `[Backlog]`, `[InProgress]`, or `[InReview]` contains work the AgentTeam can
   still advance.
@@ -65,6 +100,58 @@ Open work is any item in `[Backlog]`, `[InProgress]`, or `[InReview]`.
 - When a review item includes a blocking objection, record the issuer, scope,
   reason, required resolution evidence, and disposition in the task text or a
   shared decision log before moving it to `[Done]`.
+
+## Acceptance Ledger
+
+Use `[Acceptance]` to trace user/spec obligations. Each item uses:
+
+```ini
+REQ-001: status=open; source=user-prompt; owner=main; verification=planned-check; evidence=pending
+```
+
+Allowed statuses are `open`, `satisfied`, `blocked`, `needs_user`,
+`out-of-scope`, and `deferred`. A finalizable item must have a non-empty id
+before `:`, `status`, `source`, `owner`, `verification`, and `evidence`, and its
+status must be `satisfied`, `out-of-scope`, or `deferred`. `open`, `blocked`,
+`needs_user`, missing required fields, duplicate item ids, duplicate field keys,
+or unknown statuses are finalization blockers. Item ids are case-insensitive for
+duplicate detection; update an existing id in place instead of adding another
+line with the same id.
+
+## Gates Ledger
+
+Use `[Gates]` for required quality gates:
+
+```ini
+gate-visual: status=open; kind=visual; evidence=pending
+```
+
+Allowed statuses are `open`, `passed`, `failed`, `blocked`, `needs_user`, and
+`not-applicable`. Allowed kinds are `visual`, `mcp`, `env`, `test`, and `e2e`.
+`passed` and `not-applicable` resolve a gate when the id, status, kind, and
+evidence are present. `open`, `failed`, `blocked`, `needs_user`, missing
+required fields, duplicate item ids, duplicate field keys, unknown statuses, or
+unknown kinds are finalization blockers. Item ids are case-insensitive for
+duplicate detection; replace the prior gate line rather than appending a
+contradictory `passed` line beside an `open` or `failed` line.
+For `kind=visual`, `status=passed` additionally requires evidence containing
+URL, requested viewport, measured viewport, screenshot, console, network,
+artifact directory, fit assertion, and verifying Agent details. The requested
+viewport or environment set must come from the user, Spec, UI/design docs,
+target platform, or existing product support scope. If none is specified, the
+Agent must derive the primary verification environment from the product's
+documented or implemented use case and record that rationale in evidence.
+Desktop, mobile, responsive, or other platform coverage is mandatory only when
+required; out-of-scope platform coverage belongs in `[Candidates]` as deferred
+or rejected, not in `[Gates]`.
+The measured viewport must
+match the requested viewport evidence. Passed visual gates also need
+server manifest or equivalent base_url/PID/log evidence, semantic assertions for
+required UI states, and cleanup evidence for any dev server started by the run.
+The URL/base_url in evidence must identify the same server used for screenshots,
+API probes, and network logs. Stale localhost ports, requested/measured viewport
+mismatches, workspace-only MCP output, or mismatched harnesses keep the gate
+unresolved.
 
 ## Candidate Ledger
 
@@ -86,24 +173,28 @@ Completed dispositions are `integrated`, `rejected`, `deferred`, `blocked`,
 dispositions are unresolved. If `[status]` is `done` while any candidate is
 unresolved, the Stop Hook should wake MainAgent to continue or correct the
 finalization.
+For AgentOrchestra runtime, launch, MCP, tmux delivery, visual-tooling, or
+coordination defects observed during an E2E run, `integrated` means a
+corresponding AgentOrchestra code/configuration/contract fix was actually made
+and a later E2E or focused regression check proved the defect no longer
+recurs. A current-run workaround, such as disabling MCP inheritance for a
+ProfessionalAgent, bypassing a failed pane, or having MainAgent perform a QA
+gate, is evidence that the product task can continue; it is not enough
+evidence for `integrated`.
 
 ## Agent State Updates
 
 Agent state is runtime metadata at `$AGENT_ORCHESTRA_AGENT_STATE`. It may live
-outside the overlay workspace, so do not use `apply_patch` for it. When your
-assigned ProfessionalAgent work is ready for Team review, update your own state
-with a direct metadata write:
+outside the overlay workspace, so do not use `apply_patch` for it. Do not add a
+`status` key to state JSON; the only completion field the runtime reads is
+canonical `state`. When your assigned ProfessionalAgent work is ready for Team
+review, update your own state through the runtime helper so agent id, kind, and
+tmux target are preserved and stale keys are dropped:
 
 ```sh
-"$AGENT_ORCHESTRA_PYTHON" - <<'PY'
-import json, os
-from pathlib import Path
-
-path = Path(os.environ["AGENT_ORCHESTRA_AGENT_STATE"])
-data = json.loads(path.read_text(encoding="utf-8"))
-data["state"] = "ready_for_review"
-path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-PY
+"$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.agent_state_update \
+  --state-file "$AGENT_ORCHESTRA_AGENT_STATE" \
+  --state ready_for_review
 ```
 
 Set `retired` only when MainAgent has accepted the result or explicitly retires

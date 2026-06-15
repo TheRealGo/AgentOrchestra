@@ -21,6 +21,10 @@ done
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 {candidate}
 

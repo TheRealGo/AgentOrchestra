@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import subprocess
 import sys
 from datetime import datetime
@@ -12,6 +13,7 @@ if __package__ in {None, ""}:
 
 from agent_orchestra_minimal.doctor import doctor_command
 from agent_orchestra_minimal.launch_material import LaunchMaterial, prepare_launch_material
+from agent_orchestra_minimal.process_env import clean_codex_env
 
 
 MAIN_LAYER_PREFIX = "15_"
@@ -50,9 +52,20 @@ def main(argv: list[str] | None = None) -> int:
         help="summarize Codex CLI feature flags relevant to AgentOrchestra",
     )
     doctor.add_argument(
+        "--mcp",
+        action="store_true",
+        help="summarize inherited MCP servers and required commands",
+    )
+    doctor.add_argument(
         "--task-file",
         help="validate a shared task file and report deterministic finalization blockers",
     )
+    doctor.add_argument(
+        "--server-processes",
+        action="store_true",
+        help="scan AgentOrchestra server_process manifests and report live leftover helpers",
+    )
+    doctor.add_argument("--server-process-root", default=str(default_run_root()), help=argparse.SUPPRESS)
 
     args = parser.parse_args(argv)
     if args.command == "doctor":
@@ -82,8 +95,7 @@ def start_main(args: argparse.Namespace) -> int:
         print_start_material(material)
         return 0
 
-    env = os.environ.copy()
-    env.update(material.env)
+    env = clean_codex_env(material.env)
     os.chdir(material.workspace)
     os.execvpe("codex", material.command["argv"], env)
     return 0
@@ -112,6 +124,7 @@ def prepare_main_material(
         lead_layer=layer_source.parent.name if layer_source else "MainAgent",
         tmux_pane=tmux_pane,
         initial_state="ready",
+        initial_task_status="progress",
     )
 
 
@@ -129,7 +142,17 @@ def parse_start_args(argv: list[str]) -> argparse.Namespace:
 
 def default_run_dir() -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return Path("/private/tmp/agent-orchestra") / f"{stamp}-agent-orchestra"
+    return default_run_root() / f"{stamp}-agent-orchestra"
+
+
+def default_run_root() -> Path:
+    if configured := os.environ.get("AGENT_ORCHESTRA_RUN_ROOT"):
+        return Path(configured).expanduser()
+    if xdg_state := os.environ.get("XDG_STATE_HOME"):
+        return Path(xdg_state).expanduser() / "agent-orchestra" / "runs"
+    if platform.system() == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "agent-orchestra" / "runs"
+    return Path.home() / ".local" / "state" / "agent-orchestra" / "runs"
 
 
 def current_tmux_pane() -> str | None:

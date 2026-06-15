@@ -15,6 +15,17 @@ from agent_orchestra_minimal.launch_material import prepare_launch_material  # n
 
 
 class LaunchMaterialIOTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.env_patcher = patch.dict(
+            os.environ,
+            {"AGENT_ORCHESTRA_REPO_ROOT": str(ROOT), "AGENT_ORCHESTRA_TUI_SUBMIT_KEY": ""},
+            clear=False,
+        )
+        self.env_patcher.start()
+
+    def tearDown(self) -> None:
+        self.env_patcher.stop()
+
     def test_main_material_uses_protocol_layer_before_target_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

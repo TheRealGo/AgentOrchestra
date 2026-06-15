@@ -42,6 +42,42 @@ class ContinuousImprovementContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, skill)
 
+    def test_recovered_non_required_mcp_warning_is_not_automatic_completion_blocker(self) -> None:
+        skill = " ".join(
+            (ROOT / ".codex" / "skills" / "agent-orchestra-team" / "SKILL.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        main_template = " ".join(
+            (
+                ROOT
+                / ".codex"
+                / "agent_orchestra_minimal"
+                / "agent_templates"
+                / "main.AGENTS.md"
+            )
+            .read_text(encoding="utf-8")
+            .split()
+        )
+
+        for phrase in (
+            "inherited MCP startup warnings that block task delivery or required MCP/tool evidence",
+            "A recovered or non-required MCP startup warning should be recorded with server names and impact",
+            "Before reporting that no MCP failure was observed",
+            "`colab-mcp` startup failures may be ignored when Colab is not in scope",
+            "Do not let pane-only MCP startup failures disappear from the final E2E evidence",
+            "not by itself a completion blocker",
+        ):
+            self.assertIn(phrase, skill)
+        for phrase in (
+            "Record the affected server names and impact",
+            "does not block required MCP/tool evidence",
+            "non-blocking candidate note",
+            "Do not claim \"no MCP failure observed\" unless",
+            "Ignore `colab-mcp` startup failures when they are unrelated",
+        ):
+            self.assertIn(phrase, main_template)
+
     def test_team_skill_and_main_template_require_subagent_opportunity_check(self) -> None:
         skill = " ".join(
             (ROOT / ".codex" / "skills" / "agent-orchestra-team" / "SKILL.md")

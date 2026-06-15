@@ -5,12 +5,49 @@ import re
 
 MESSAGE_PROBE_CHARS = 120
 MIN_MESSAGE_PROBE_CHARS = 56
+MIN_TAIL_MESSAGE_PROBE_CHARS = 24
 MAX_WRAPPED_PROBE_LINES = 24
 START_MARKERS = ("• ", "Working", "Pursuing goal", "Explored", "Ran ", "Edited ")
 LONG_START_MARKERS = ("Waiting for", "Finished waiting")
+ACTIVE_STATUS_MARKERS = (
+    "background terminal running",
+    "background terminals running",
+)
 QUEUE_MARKERS = (
     "tab to queue message",
     "Messages to be submitted after next tool call",
+)
+BLOCKING_INPUT_MARKERS = (
+    "Press enter to confirm",
+    "esc to go back",
+)
+RECOVERABLE_CHOICE_MENU_MARKERS = (
+    "esc to go back",
+    "Switch to gpt-",
+    "Keep current model",
+    "Press enter to confirm or esc",
+)
+RECOVERABLE_STARTUP_MARKERS = (
+    "Update available!",
+    "MCP client failed",
+    "MCP server failed",
+    "failed to start MCP",
+    "failed to initialize MCP",
+    "startup warning",
+    "less than 10% of your weekly limit left",
+    "You've hit your usage limit",
+    "Goal hit usage limits",
+)
+USAGE_LIMIT_MARKERS = (
+    "You've hit your usage limit",
+    "Goal hit usage limits",
+)
+DEFAULT_COMPOSER_PROMPTS = (
+    "Find and fix a bug in @filename",
+    "Write tests for @filename",
+    "Improve documentation in @filename",
+    "Explain this codebase",
+    "Implement {feature}",
 )
 AGENT_MESSAGE_ROLES = ("MainAgent", "ProfessionalAgent")
 AGENT_ID_PROMPT = re.compile(r"^(?:main|mainagent|pro-[A-Za-z0-9_.-]+)(?::|\s|$)")
@@ -69,6 +106,24 @@ def line_has_agent_message_prompt(line: str) -> bool:
     )
 
 
+def line_has_default_composer_prompt(line: str) -> bool:
+    stripped = line.lstrip()
+    if not stripped.startswith(("›", ">")):
+        return False
+    message = stripped[1:].strip()
+    return any(message.startswith(prompt) for prompt in DEFAULT_COMPOSER_PROMPTS)
+
+
+def line_has_clearable_composer_prompt(line: str) -> bool:
+    stripped = line.lstrip()
+    if not stripped.startswith(("›", ">")):
+        return False
+    if line_has_agent_message_prompt(line):
+        return False
+    message = stripped[1:].strip()
+    return bool(message)
+
+
 def looks_started(capture: str) -> bool:
     return any(
         line_has_start_marker(line, START_MARKERS + LONG_START_MARKERS)
@@ -79,7 +134,74 @@ def looks_started(capture: str) -> bool:
 def line_has_start_marker(line: str, markers: tuple[str, ...]) -> bool:
     if line[:1].isspace():
         return False
+    if line.startswith("• Starting MCP servers"):
+        return False
     return any(line.startswith(marker) for marker in markers)
+
+
+def has_active_marker(lines: list[str]) -> bool:
+    active_markers = ("• Working", "Working", "Pursuing goal")
+    done_markers = ("Done.", "Done", "FAILED", "Failed", "Cancelled", "─ Worked for")
+    active_index = max(
+        (i for i, line in enumerate(lines) if line_has_start_marker(line, active_markers)),
+        default=-1,
+    )
+    if active_index <= max(
+        (i for i, line in enumerate(lines) if line_has_start_marker(line, done_markers)),
+        default=-1,
+    ):
+        return any(any(marker in line for marker in ACTIVE_STATUS_MARKERS) for line in lines)
+    return True
+
+
+def looks_interrupted_or_paused(capture: str) -> bool:
+    return "Conversation interrupted" in capture or "Goal paused" in capture
+
+
+def looks_usage_limited(capture: str) -> bool:
+    return any(marker in capture for marker in USAGE_LIMIT_MARKERS)
+
+
+def same_ready_prompt_started_work(
+    lines: list[str],
+    prompt_index: int,
+    tail: str,
+    *,
+    baseline_capture: str,
+    baseline_prompt_index: int,
+) -> bool:
+    if baseline_prompt_index == -1 or prompt_index != baseline_prompt_index:
+        return False
+    baseline_lines = baseline_capture.splitlines()
+    if prompt_index >= len(baseline_lines):
+        return False
+    prompt_line = lines[prompt_index]
+    if prompt_line != baseline_lines[prompt_index]:
+        return False
+    if line_has_agent_message_prompt(prompt_line):
+        return False
+    return looks_started(tail)
+
+
+def agent_prompt_started_work_without_probe(
+    lines: list[str],
+    prompt_index: int,
+    text: str,
+    tail: str,
+    *,
+    baseline_capture: str,
+) -> bool:
+    if not line_has_agent_message_prompt(lines[prompt_index]):
+        return False
+    if not looks_started(tail) or looks_queued(tail):
+        return False
+    prompt_text = normalized_wrapped_line_window(lines, prompt_index).lstrip("›> ")
+    normalized_text = " ".join(text.strip().split())
+    return (
+        len(prompt_text) >= MIN_MESSAGE_PROBE_CHARS
+        and normalized_text.startswith(prompt_text)
+        and "\n".join(lines) != baseline_capture
+    )
 
 
 def looks_queued(capture: str) -> bool:
@@ -90,16 +212,45 @@ def line_has_queue_marker(line: str) -> bool:
     return any(marker in line for marker in QUEUE_MARKERS)
 
 
+def looks_blocked_by_input_choice(capture: str) -> bool:
+    return any(marker in capture for marker in BLOCKING_INPUT_MARKERS)
+
+
+def looks_recoverable_choice_menu(capture: str) -> bool:
+    return any(marker in capture for marker in RECOVERABLE_CHOICE_MENU_MARKERS)
+
+
+def looks_recoverable_startup_notice(capture: str) -> bool:
+    lowered = capture.casefold()
+    return any(marker.casefold() in lowered for marker in RECOVERABLE_STARTUP_MARKERS)
+
+
 def message_probes(text: str) -> tuple[str, ...]:
     normalized = " ".join(text.strip().split())
     first_line = " ".join(text.strip().splitlines()[0].split()) if text.strip() else ""
+    nonempty_lines = [" ".join(line.split()) for line in text.strip().splitlines() if line.strip()]
+    last_long_line = next(
+        (line for line in reversed(nonempty_lines) if len(line) >= MIN_MESSAGE_PROBE_CHARS),
+        "",
+    )
+    tail = normalized[-MESSAGE_PROBE_CHARS:] if len(normalized) >= MIN_MESSAGE_PROBE_CHARS else ""
     probes = []
-    for source in (normalized, first_line):
+    for source in (normalized, first_line, last_long_line, tail):
         for length in (MESSAGE_PROBE_CHARS, 80, MIN_MESSAGE_PROBE_CHARS):
             candidate = source[:length]
             if candidate and (len(source) <= length or len(candidate) >= MIN_MESSAGE_PROBE_CHARS):
                 if candidate not in probes:
                     probes.append(candidate)
+    for source in reversed(nonempty_lines):
+        if len(source) >= MIN_TAIL_MESSAGE_PROBE_CHARS:
+            candidate = source[:MIN_MESSAGE_PROBE_CHARS]
+            if candidate not in probes:
+                probes.append(candidate)
+            break
+    if len(normalized) >= MIN_TAIL_MESSAGE_PROBE_CHARS:
+        candidate = normalized[-MIN_MESSAGE_PROBE_CHARS:]
+        if candidate not in probes:
+            probes.append(candidate)
     return tuple(probes)
 
 

@@ -19,9 +19,22 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("Do not use the target project's `layers/` tree", launch_normalized)
         self.assertIn("single quotes when invoking `prepare_agent_launch.py`", launch_normalized)
         self.assertIn("Do not recompose the Codex launch command by hand", launch_normalized)
+        self.assertIn("Before pasting any shell launch command, capture the target pane", launch_normalized)
+        self.assertIn("clearly outside Codex TUI", launch_normalized)
+        self.assertIn("Do not paste a launch command into a pane that still shows a Codex composer", launch_normalized)
+        self.assertIn("initializes `state.json` as `ready`", launch_normalized)
+        self.assertIn("Delivery confirmation, not pane creation or TUI startup", launch_normalized)
+        self.assertIn("background terminal status", launch_normalized)
+        self.assertIn("prompt pollution", launch_normalized)
         self.assertIn("`command.json` is the runtime boundary for the full argv", launch_normalized)
         self.assertIn("--enable prevent_idle_sleep", launch_normalized)
-        self.assertIn('Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json")', launch)
+        self.assertIn("Path(sys.argv[1])", launch)
+        self.assertIn("Do not depend on pane-local shell variables", launch_normalized)
+        self.assertNotIn('Path(os.environ["AGENT_DIR"])', launch)
+        self.assertIn("env.json", launch)
+        self.assertIn("os.execvpe", launch)
+        self.assertIn("parent shell environment", launch_normalized)
+        self.assertIn("tokens", launch_normalized)
         self.assertNotIn("codex --profile agent-orchestra --ask-for-approval never", launch)
         self.assertNotIn("--instruction-source \"$AGENT_ORCHESTRA_TARGET_PROJECT", launch)
         self.assertNotIn("AGENT_ORCHESTRA_TARGET_PROJECT/layers", launch)
@@ -46,6 +59,9 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("ProfessionalAgent-to-ProfessionalAgent consultation", common)
         self.assertIn("--poll-interval-seconds 0.5", common)
         self.assertIn("--polls-per-attempt 60", common)
+        self.assertIn("--allow-short-polls", common)
+        self.assertIn("optional peer consultation", common_normalized)
+        self.assertIn("Do not use short polling for initial ProfessionalAgent assignments", common)
         self.assertIn("slow Codex TUI startup", common)
         self.assertIn("peer still finishing its current turn", common)
         self.assertIn("before pasting", common)
@@ -73,7 +89,13 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("task, follow-up, and review message delivery", main)
         self.assertIn("concrete send/capture/retry procedure", main_normalized)
         self.assertIn("scoped initial task", main)
+        self.assertIn("state starts as `ready`", main_normalized)
+        self.assertIn("do not change it to `working` until the scoped assignment delivery is confirmed", main_normalized)
         self.assertIn("split-window", main)
+        self.assertIn('MAIN_PANE="${AGENT_ORCHESTRA_TMUX_PANE:?}"', main)
+        self.assertIn('tmux split-window -h -t "$MAIN_PANE"', main)
+        self.assertIn('tmux split-window -v -t "$PRO_PANE_1"', main)
+        self.assertIn("Never rely on tmux's current active client", main)
         self.assertIn("agent-orchestra-launch", main)
         self.assertIn("kill-pane", main)
         self.assertIn("not a hard permission boundary", main)
@@ -82,16 +104,35 @@ class SkillBoundaryContractTests(unittest.TestCase):
         task = (CODEX / "skills" / "agent-orchestra-task-file" / "SKILL.md").read_text(encoding="utf-8")
         normalized = " ".join(task.split())
 
-        self.assertIn("initializes a quiet empty task file with `[status] done`", normalized)
-        self.assertIn("switch the file to `[status] progress`", normalized)
+        self.assertIn("can initialize a quiet empty task file with `[status] done`", normalized)
+        self.assertIn("Legacy task files that omit those two sections are parsed as empty acceptance/gate ledgers", normalized)
+        self.assertIn("do not \"fix\" that compatibility by making old task files invalid", normalized)
+        self.assertIn("receiving a user task starts and stays `[status] progress`", normalized)
         self.assertIn("discovery, investigation, implementation, or review work", normalized)
-        self.assertIn("Backlog/InProgress/InReview/Candidates/Done state", normalized)
+        self.assertIn("Backlog/InProgress/InReview/Acceptance/Gates/Candidates/Done state", normalized)
         self.assertIn("Candidate ids must be unique", normalized)
         self.assertIn("Candidate field keys", normalized)
         self.assertIn("must not be duplicated", normalized)
         self.assertIn("duplicate keys make the candidate unresolved", normalized)
         self.assertIn("Every completed candidate must include a non-empty id", normalized)
         self.assertIn("a `summary`, and an `evidence` pointer", normalized)
+        self.assertIn("Preserve existing run-level `[Acceptance]`, `[Gates]`, and `[Candidates]`", normalized)
+        self.assertIn("Do not replace the shared task file with a narrower review-only", normalized)
+        self.assertIn("Never \"simplify\" the shared file by regenerating it from your local notes", normalized)
+        self.assertIn("verify that unrelated acceptance, gate, candidate, and peer state entries survived", normalized)
+        self.assertIn("Do not add a `status` key to state JSON", normalized)
+        self.assertIn("agent_orchestra_minimal.agent_state_update", normalized)
+
+    def test_tmux_skills_document_confirmed_single_assignment_delivery(self) -> None:
+        common = (CODEX / "skills" / "agent-orchestra-tmux-common" / "SKILL.md").read_text(encoding="utf-8")
+        main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
+        combined = " ".join((common + "\n" + main).split())
+
+        self.assertIn("send the complete scoped task in one confirmed delivery", combined)
+        self.assertIn("Do not send a preliminary \"receipt only\" message", combined)
+        self.assertIn("default composer prompt", combined)
+        self.assertIn("delivery is not confirmed", combined)
+        self.assertIn("Before delivery, add the ProfessionalAgent work item to `[InProgress]`", combined)
 
     def test_tmux_main_skill_documents_retirement_cleanup_sequence(self) -> None:
         main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
@@ -150,6 +191,8 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "`command.json` is the source of truth",
             "use a neutral variable such as `rc=$?`",
             "`status` is a read-only zsh parameter",
+            "a fixable AgentOrchestra defect observed during E2E is not final",
+            "Add runtime, launch, tmux delivery, MCP/tooling, environment, or completion-contract defects to `[Backlog]`",
         ):
             self.assertIn(phrase, normalized)
 
@@ -164,8 +207,28 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "scoped task in the shared task file under `[InReview]`",
             "to `[Done]` only when the accepted disposition is known",
             "do not use this task update to decide whole-run completion",
+            "agent_orchestra_minimal.agent_state_update",
+            "Do not hand-write a `status` key",
         ):
             self.assertIn(phrase, normalized)
+
+    def test_environment_skill_documents_http_health_identity_check(self) -> None:
+        skill = (CODEX / "skills" / "agent-orchestra-environment" / "SKILL.md").read_text(encoding="utf-8")
+        normalized = " ".join(skill.split())
+
+        self.assertIn("--health-url", skill)
+        self.assertIn("--health-contains", normalized)
+        self.assertIn("--allow-tcp-readiness", normalized)
+        self.assertIn("never use it for a web/API server just to bypass a missing health check", normalized)
+        self.assertIn("stale localhost listener from an earlier run cannot satisfy the readiness gate", normalized)
+
+    def test_team_skill_keeps_fixable_orchestra_defects_in_progress(self) -> None:
+        skill = (CODEX / "skills" / "agent-orchestra-team" / "SKILL.md").read_text(encoding="utf-8")
+        normalized = " ".join(skill.split())
+
+        self.assertIn("do not mark a fixable AgentOrchestra runtime", normalized)
+        self.assertIn("add the defect to `[Backlog]`, keep `[status] progress`", normalized)
+        self.assertIn("require a later E2E or focused regression check", normalized)
 
 
 if __name__ == "__main__":

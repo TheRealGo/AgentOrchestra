@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.agent_state import ACTIVE_STATES, QUIET_STATES, AgentState  # noqa: E402
+from agent_orchestra_minimal.agent_state_update import main as agent_state_update_main  # noqa: E402
 
 
 class ProfessionalAgentStateTests(unittest.TestCase):
@@ -102,6 +104,40 @@ class ProfessionalAgentStateTests(unittest.TestCase):
 
         self.assertTrue(agent_state.is_quiet)
         self.assertIsNone(agent_state.tmux_target)
+
+    def test_agent_state_update_writes_canonical_state_without_status_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_file = Path(tmpdir) / "state.json"
+            state_file.write_text(
+                (
+                    '{\n'
+                    '  "agent_id": "pa-ui",\n'
+                    '  "agent_kind": "ProfessionalAgent",\n'
+                    '  "state": "working",\n'
+                    '  "status": "working",\n'
+                    '  "tmux_target": "%367"\n'
+                    '}\n'
+                ),
+                encoding="utf-8",
+            )
+
+            result = agent_state_update_main(
+                [
+                    "--state-file",
+                    str(state_file),
+                    "--state",
+                    "ready_for_review",
+                ]
+            )
+
+            self.assertEqual(result, 0)
+            text = state_file.read_text(encoding="utf-8")
+            self.assertNotIn('"status"', text)
+            agent_state = AgentState.read(state_file)
+            self.assertEqual(agent_state.state, "ready_for_review")
+            self.assertEqual(agent_state.agent_id, "pa-ui")
+            self.assertEqual(agent_state.agent_kind, "ProfessionalAgent")
+            self.assertEqual(agent_state.tmux_target, "%367")
 
 
 if __name__ == "__main__":

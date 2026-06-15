@@ -10,6 +10,10 @@ __pycache__/
 .claude/installation_id
 .claude/tmp/
 .claude/skills/.system/
+.tmp/
+.playwright-mcp/
+agenticrag-*.png
+result-*
 E2E.md
 AgentOrchestra/
 Handoff.md

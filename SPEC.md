@@ -173,14 +173,20 @@ done
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 
 [Done]
 ```
 
 - open workがあるなら `progress`
-- Backlog / InProgress / InReview が空で、Candidatesに未解決候補がなければ `done`
+- Backlog / InProgress / InReview が空で、Acceptance / Gates / Candidatesに未解決項目がなければ `done`
 - Doneはopen workではない
+- Acceptanceはユーザー要求・Spec・issue・design docsから作るrequirement ledgerであり、open/blocked/needs_user/必須field不足/未知statusは未解決として扱う
+- Gatesはvisual、MCP、environment、test、E2Eなどdone前に必要な品質証跡であり、open/failed/blocked/needs_user/必須field不足/未知statusは未解決として扱う
 - Candidatesは最終改善候補ledgerであり、missing/open/backlog/未知のdispositionは未解決として扱う
 - 判断はAgentTeamが行い、task fileは状態を表すだけ
 - InReviewはMainAgent待ち専用ではなく、peer review、request-changes、blocking objection解消待ちを含む
@@ -256,6 +262,32 @@ ProfessionalAgent recommendations, failed or skipped verification gaps, E2E
 observations, and operational issues discovered during the run. MainAgent must
 not hide these as narrative-only notes when they are actionable within the
 active goal and editable surface.
+
+Missing environment, MCP, tool, dependency, browser, container, service,
+credential, or network access is not by itself a completion endpoint. Before a
+run may settle as `blocked` or `needs_user`, the owning Agent must try or
+explicitly rule out alternative completion routes such as repository-native
+setup, existing Docker compose, ephemeral env/cache setup, alternate
+CLI/browser/screenshot tooling, API/log probes, equivalent repository-standard
+checks, or a smaller reproducible harness that still verifies the acceptance
+requirement. The task file evidence must name the attempted routes and the exact
+external credential, approval, network access, service, hardware, or scope
+change required from the user when no autonomous route remains.
+Requirement document discovery is case-insensitive and path-aware. If a user or
+repository refers to `Spec.md`, `SPEC.md`, `spec.md`, `UI.md`, `ui.md`, README
+variants, issue files, or design docs, MainAgent must read the actual files
+before team selection and acceptance-ledger creation; an exact-case miss is not
+evidence that the requirement document is absent.
+
+Environment cleanup is limited to resources the current run created. Agents must
+not delete arbitrary untracked repository files, supervisor status files,
+pre-existing scratch directories, or `result`/`result-*` Nix symlinks merely to
+make `git status` look cleaner. Current-run cleanup may remove launch-provided
+cache/artifact/env directories and compose resources identified by
+`COMPOSE_PROJECT_NAME`; unknown local artifacts are recorded as candidates or
+evidence instead of being removed.
+Unknown local artifacts are outside current-run cleanup unless the current run
+created them.
 
 The standard Python verification runner is `unittest`, not `pytest`.
 AgentTeam verification should use `python3 -m unittest discover -s tests`,
@@ -486,7 +518,10 @@ If the user explicitly instructs MainAgent to leave the orchestra with `/exit`
 after completion, that self-exit is part of the completion contract. MainAgent
 must use the tmux Main Skill self-exit procedure as its final tool action, and
 must report an explicit self-exit failure instead of claiming exit success when
-`/exit` remains queued or the pane remains active.
+`/exit` remains queued or the pane remains active. A normal completion report,
+persistent goal completion message, or idle prompt is not a substitute for this
+self-exit; the MainAgent pane must actually leave before the requirement is
+satisfied.
 
 Runtime must not own ProfessionalAgent pane scheduling. Runtime only provides
 launch material that MainAgent can run inside a pane.
@@ -496,11 +531,11 @@ launch material that MainAgent can run inside a pane.
 Every run has a single shared task file.
 
 The initialized empty task file is the quiet baseline: it has `[status] done`
-and no open work or unresolved candidates. That baseline only means no work has
-been recorded yet. Once an Agent accepts user work, an AgentTeam assignment,
-discovery work, or any open task, it must record the work in `Backlog`,
-`InProgress`, or `InReview` and set `[status] = progress` before substantial
-investigation.
+and no open work or unresolved acceptance, gates, or candidates. That baseline
+only means no work has been recorded yet. Once an Agent accepts user work, an
+AgentTeam assignment, discovery work, or any open task, it must record the work
+in `Backlog`, `InProgress`, `InReview`, `Acceptance`, or `Gates` as appropriate
+and set `[status] = progress` before substantial investigation.
 
 Canonical empty shape:
 
@@ -513,6 +548,10 @@ done
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 
@@ -532,15 +571,66 @@ Open work exists when any item remains in:
 
 Items in `[Done]` are not open work.
 
+`[Acceptance]` items trace user/spec obligations:
+
+```ini
+REQ-001: status=open; source=user-prompt; owner=main; verification=planned-check; evidence=pending
+```
+
+Allowed acceptance statuses are `open`, `satisfied`, `blocked`,
+`needs_user`, `out-of-scope`, and `deferred`. A finalizable acceptance item has
+a non-empty id, `status`, `source`, `owner`, `verification`, and `evidence`,
+and its status is `satisfied`, `out-of-scope`, or `deferred`. `open`,
+`blocked`, `needs_user`, missing required fields, duplicate field keys, or
+unknown statuses are finalization blockers.
+
+`[Gates]` items trace required quality gates:
+
+```ini
+gate-mcp: status=open; kind=mcp; evidence=pending
+```
+
+Allowed gate statuses are `open`, `passed`, `failed`, `blocked`,
+`needs_user`, and `not-applicable`. Allowed gate kinds are `visual`, `mcp`,
+`env`, `test`, and `e2e`. A finalizable gate is `passed` or `not-applicable`
+with id, status, kind, and evidence. `open`, `failed`, `blocked`,
+`needs_user`, missing required fields, duplicate field keys, unknown statuses,
+or unknown kinds are finalization blockers.
+For `kind=visual`, `status=passed` is finalizable only when evidence records
+the URL, screenshot path, requested viewport, measured viewport, console errors,
+network errors, verifying Agent, artifact directory, fit assertion, server
+manifest or equivalent base_url/PID/log evidence, semantic assertions for
+required UI states, cleanup evidence for dev servers started by the run, and a
+viewport or environment set derived from the user, Spec, UI/design docs, target
+platform, or existing product support scope. If no viewport or device class is
+specified, the Agent must derive the primary verification environment from the
+product's documented or implemented use case and record that rationale in
+evidence. Desktop, mobile, responsive, small-screen, or other platform coverage
+is required only when it is in scope. Out-of-scope platform coverage may be
+recorded as a deferred candidate, but it must not become implementation scope or
+a completion gate. Screenshots, API probes, and network logs must use the same
+recorded base_url; stale localhost ports, requested/measured viewport
+mismatches, workspace-only MCP output, or mismatched harnesses are visual/E2E
+gate failures.
+All long-running E2E helpers are part of the same environment contract. Fake
+LLM/API servers, databases, queues, workers, file watchers, secondary web
+servers, and test harness listeners must be started through the runtime
+supervisor or recorded in an equivalent manifest with PID/PGID, port/base_url,
+log path, owner, and cleanup command. Unmanifested current-run listeners or
+helpers that survive cleanup keep the environment gate unresolved.
+
 `[InReview]` is not MainAgent-only. It can represent peer review,
 request-changes, blocking-objection resolution, or change-unit DRI review.
 When a blocking objection exists, the AgentTeam must record issuer, scope,
 reason, required resolution evidence, and disposition before moving the item to
 `[Done]`.
 
-Each required section must appear exactly once.
-Duplicate or unknown sections are invalid because the task file is a
-deterministic Hook state source, not an append-only log.
+The required structural sections `[status]`, `[Backlog]`, `[InProgress]`,
+`[InReview]`, `[Candidates]`, and `[Done]` must appear exactly once.
+`[Acceptance]` and `[Gates]` must be present in newly initialized task files,
+but legacy task files that omit them are parsed as empty ledgers for backward
+compatibility. Duplicate or unknown sections are invalid because the task file
+is a deterministic Hook state source, not an append-only log.
 
 If the task file is missing, unreadable, or invalid while an Agent stops, the
 Stop Hook must still preserve liveness. It should wake MainAgent or an active
@@ -576,6 +666,12 @@ When MainAgent stops, it is re-kicked if:
 - `[status] = progress`; or
 - `[status] = done` and any item remains in `[Backlog]`, `[InProgress]`, or
   `[InReview]`; or
+- `[status] = done` and any `[Acceptance]` item is `open`, `blocked`,
+  `needs_user`, has an unknown status, or lacks required
+  source/owner/verification/evidence fields; or
+- `[status] = done` and any `[Gates]` item is `open`, `failed`, `blocked`,
+  `needs_user`, has an unknown status/kind, or lacks required kind/evidence
+  fields; or
 - `[status] = done` and any `[Candidates]` item has a missing, `open`,
   `backlog`, or unrecognized disposition, or lacks the required id, summary,
   or evidence pointer.
@@ -584,6 +680,9 @@ MainAgent is not re-kicked if:
 
 - `[status] = done`; and
 - `[Backlog]`, `[InProgress]`, and `[InReview]` are all empty; and
+- every `[Acceptance]` item is satisfied, out-of-scope, or deferred with
+  required evidence; and
+- every `[Gates]` item is passed or not-applicable with required evidence; and
 - every `[Candidates]` item has a completed disposition.
 
 The Hook only enforces mechanical liveness. It cannot know whether MainAgent
@@ -669,6 +768,34 @@ long-run-equivalent contract check, include verification commands such as
 `python3 -m unittest discover -s tests`, `python3 -m py_compile`,
 `git diff --check`, and applicable Nix checks, and record any residual risk or
 deferred criterion explicitly.
+Long-running or external-state checks, including Nix builds, Docker pulls,
+dependency installation, browser installation, and network-backed fetches, are
+bounded verification gates. Agents run them sequentially by default, apply an
+explicit timeout, store stdout/stderr under the artifact directory when
+available, and record timeout, cancellation, skip, blocked, or deferred
+dispositions in `[Gates]` or `[Candidates]`. A silent redundant check must not
+hold the run open indefinitely after equivalent scoped evidence, such as
+`nix flake check --no-build`, a package build, or generated-copy contract
+evidence, has already passed; Agents continue finalization without waiting
+indefinitely.
+Browser and visual E2E routes require a strict outer wall-clock timeout around
+the whole install/launch/screenshot/action route. Page-level Playwright
+timeouts are insufficient because the browser process can hang before page code
+runs. After one outer-timeout or launch-hang on a route, Agents must stop that
+route, preserve logs, record a candidate or gate failure, and switch to another
+evidence path or leave the gate failed/blocked; unbounded browser retries and
+another unbounded browser run are not allowed.
+For non-redundant required environment failures, Agents must route around before
+they escalate: use existing Docker compose when native setup fails, use
+ephemeral environments instead of tracked helper files, use CLI/browser/log/API
+evidence when an MCP path is broken, and ask the user for the specific missing
+external input only after those alternatives are exhausted or unsafe.
+When a browser, GUI, screenshot, or Quick Look route fails with sandbox-style
+permission errors such as `MachPortRendezvous`, `Operation not permitted`,
+`SIGABRT`, or sandbox initialization failure, the owning Agent retries that
+necessary visual evidence command once with
+`sandbox_permissions="require_escalated"` and a narrow justification before
+recording the gate as blocked.
 
 ## Minimal Runtime Responsibilities
 
@@ -827,10 +954,11 @@ for a non-trivial change is:
 - blocking objections and resolution evidence.
 
 The shared task file exposes deterministic finalization blockers: non-`done`
-status, open work in `[Backlog]`, `[InProgress]`, or `[InReview]`, and
-unresolved `[Candidates]` entries. Final release evidence should report that
-blocker list as empty, or explicitly record why a blocker is deferred,
-blocked, out-of-scope, or needs user input.
+status, open work in `[Backlog]`, `[InProgress]`, or `[InReview]`, unresolved
+`[Acceptance]` entries, unresolved `[Gates]` entries, and unresolved
+`[Candidates]` entries. Final release evidence should report that blocker list
+as empty, or explicitly record why a blocker is deferred, blocked,
+out-of-scope, not-applicable, or needs user input.
 
 ## Completion Criteria
 
@@ -861,8 +989,14 @@ The minimal runtime is acceptable when tests and E2E evidence show:
 - accepted ProfessionalAgents are marked `retired`, sent `/exit`, and have pane
   cleanup verified before MainAgent reports completion;
 - user-requested MainAgent self-exit uses the tmux Main Skill self-exit
-  procedure and reports explicit failure if it cannot submit `/exit`;
+  procedure, reports explicit failure if it cannot submit `/exit`, and is not
+  replaced by a normal completion report or persistent-goal completion message;
 - verification uses `unittest`, direct Python `py_compile`,
   `git diff --check`, and path-form Nix checks when Git-backed generated-copy
   visibility would otherwise hide untracked fixture files;
+- missing environment, MCP, tool, Docker, browser, credential, network, or
+  service prerequisites trigger alternate completion routes or a concrete
+  `needs_user` request, not a vague stop;
+- cleanup preserves unknown untracked files, supervisor status files, and
+  `result`/`result-*` symlinks unless the current run created them;
 - runtime code remains small, mechanical, and responsibility-limited.

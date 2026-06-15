@@ -22,12 +22,14 @@ class RuntimeBoundaryTests(unittest.TestCase):
             "agent_orchestra_minimal/codex_config.py",
             "agent_orchestra_minimal/codex_features.py",
             "agent_orchestra_minimal/doctor.py",
+            "agent_orchestra_minimal/launch_env.py",
             "agent_orchestra_minimal/launch_material.py",
             "agent_orchestra_minimal/launch_io.py",
             "agent_orchestra_minimal/launch_startup.py",
             "agent_orchestra_minimal/launch_args.py",
             "agent_orchestra_minimal/operating_identity.py",
             "agent_orchestra_minimal/prepare_agent_launch.py",
+            "agent_orchestra_minimal/process_env.py",
             "agent_orchestra_minimal/rekick.py",
             "agent_orchestra_minimal/task_file.py",
             "agent_orchestra_minimal/tmux_delivery.py",
@@ -36,6 +38,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
             "bin/codex-o",
             "hooks/agent_orchestra_stop_hook.py",
             "skills/agent-orchestra-launch/SKILL.md",
+            "skills/agent-orchestra-environment/SKILL.md",
             "skills/agent-orchestra-task-file/SKILL.md",
             "skills/agent-orchestra-team/SKILL.md",
             "skills/agent-orchestra-tmux-common/SKILL.md",
@@ -101,7 +104,10 @@ class RuntimeBoundaryTests(unittest.TestCase):
         self.assertIn("Layer `INSTRUCTIONS.md` files are specialist perspectives only", normalized)
         self.assertIn("Do not recompose the Codex launch command by hand", normalized)
         self.assertIn("`command.json` is the runtime boundary for the full argv", normalized)
-        self.assertIn('Path(os.environ["AGENT_ORCHESTRA_AGENT_DIR"], "command.json")', text)
+        self.assertIn("Path(sys.argv[1])", text)
+        self.assertIn("Do not depend on pane-local shell variables", normalized)
+        self.assertNotIn('Path(os.environ["AGENT_DIR"])', text)
+        self.assertIn("os.execvpe", text)
         self.assertIn("--enable prevent_idle_sleep", text)
         self.assertIn("--cd", text)
         self.assertIn("--add-dir", text)
@@ -132,9 +138,9 @@ class RuntimeBoundaryTests(unittest.TestCase):
         self.assertIn("標準Pythonテストランナーは `unittest`", common)
         self.assertIn("`python3 -m unittest discover -s tests`", common)
         self.assertIn("`pytest` は標準依存ではない", common)
-        self.assertIn("初期化済み task file", common)
-        self.assertIn("`[status] done` で開始する", common)
-        self.assertIn("`[status] progress` に切り替える", common)
+        self.assertIn("空の互換 baseline", common)
+        self.assertIn("`[status] done` を取り得る", common)
+        self.assertIn("ユーザー task を受ける run では `[status] progress` で開始", common)
         self.assertIn("You are a ProfessionalAgent", professional)
         self.assertIn("not your superior", professional)
         self.assertIn("review peers, request changes", professional)

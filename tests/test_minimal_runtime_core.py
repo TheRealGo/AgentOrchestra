@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -25,6 +26,10 @@ done
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 
@@ -77,6 +82,26 @@ done item
         self.assertFalse(task_file.has_open_work)
         self.assertFalse(task_file.has_unresolved_candidates)
 
+    def test_initialize_can_create_progress_baseline_for_active_main_launch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "tasks.ini"
+
+            SharedTaskFile.initialize(path, status="progress")
+
+            task_file = SharedTaskFile.read(path)
+            self.assertEqual(task_file.status, "progress")
+            self.assertFalse(task_file.has_open_work)
+
+    def test_initialize_preserves_existing_task_file_under_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "tasks.ini"
+            SharedTaskFile.initialize(path, status="progress")
+
+            SharedTaskFile.initialize(path, status="done")
+
+            self.assertEqual(SharedTaskFile.read(path).status, "progress")
+            self.assertTrue((Path(tmpdir) / "tasks.ini.lock").is_file())
+
     def test_rejects_status_outside_spec_allowed_values(self) -> None:
         with self.assertRaises(ValueError):
             SharedTaskFile.parse(
@@ -89,6 +114,10 @@ paused
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 
@@ -111,6 +140,10 @@ paused
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 
 [Done]
@@ -130,6 +163,10 @@ done
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 
@@ -161,6 +198,10 @@ done
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 
 [Done]
@@ -187,6 +228,10 @@ also active
 
 [InReview]
 
+[Acceptance]
+
+[Gates]
+
 [Candidates]
 
 [Done]
@@ -206,6 +251,10 @@ progress
 [InProgress]
 
 [InReview]
+
+[Acceptance]
+
+[Gates]
 
 [Candidates]
 

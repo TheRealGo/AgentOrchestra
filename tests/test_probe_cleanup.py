@@ -62,7 +62,8 @@ class ProbeCleanupTests(unittest.TestCase):
 
         with patch("time.sleep", return_value=None), \
              patch("shutil.which", return_value="/bin/tool"), \
-             patch("agent_orchestra_minimal.prepare_agent_launch._run", side_effect=fake_run):
+             patch("agent_orchestra_minimal.prepare_agent_launch._run", side_effect=fake_run), \
+             patch.dict("os.environ", {"AGENT_ORCHESTRA_TUI_SUBMIT_KEY": ""}, clear=False):
             result = run_probe(codex_binary="codex")
 
         self.assertTrue(result.ok)

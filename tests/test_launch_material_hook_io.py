@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,14 +37,15 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
             )
             fake_tmux.chmod(0o755)
 
-            material = prepare_launch_material(
-                run_dir=tmp / "run",
-                agent_id="main-hook",
-                agent_kind="MainAgent",
-                target_project=ROOT,
-                instruction_text="Hook smoke instruction.",
-                tmux_pane="%7",
-            )
+            with patch.dict(os.environ, {"AGENT_ORCHESTRA_TUI_SUBMIT_KEY": ""}, clear=False):
+                material = prepare_launch_material(
+                    run_dir=tmp / "run",
+                    agent_id="main-hook",
+                    agent_kind="MainAgent",
+                    target_project=ROOT,
+                    instruction_text="Hook smoke instruction.",
+                    tmux_pane="%7",
+                )
             material.task_file.write_text(
                 "[status]\nprogress\n\n[Backlog]\n\n[InProgress]\n\n[InReview]\n\n[Candidates]\n\n[Done]\n",
                 encoding="utf-8",

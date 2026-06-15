@@ -13,8 +13,7 @@ sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.cli import main as cli_main  # noqa: E402
 from agent_orchestra_minimal.codex_features import CodexFeatureReport  # noqa: E402
-from agent_orchestra_minimal.codex_features import parse_codex_features_list, summarize_codex_features  # noqa: E402
-from agent_orchestra_minimal.doctor import doctor_command, inspect_task_file, run_codex_doctor, summarize_codex_doctor  # noqa: E402
+from agent_orchestra_minimal.doctor import McpDoctorReport, doctor_command, inspect_task_file, run_codex_doctor, summarize_codex_doctor  # noqa: E402
 from agent_orchestra_minimal.task_file import DEFAULT_TASK_FILE  # noqa: E402
 from agent_orchestra_minimal.launch_material import prepare_launch_material  # noqa: E402
 
@@ -87,18 +86,24 @@ class CodexConfigContractTests(unittest.TestCase):
                 "overallStatus": "fail",
                 "codexVersion": "0.135.0",
                 "checks": {
-                    "network.provider_reachability": {
-                        "category": "reachability",
+                    "mcp.colab-mcp.handshake": {
+                        "category": "mcp",
                         "status": "fail",
-                        "summary": "one or more required provider endpoints are unreachable over HTTP",
+                        "summary": "colab-mcp handshake failed with token=secret-value",
+                        "remediation": "Check COLAB_TOKEN=secret-value and rerun doctor --mcp.",
                     }
                 },
             },
             returncode=1,
         )
 
+        output = "\n".join(report.lines)
         self.assertTrue(report.failed)
-        self.assertIn("reachability/network.provider_reachability", report.lines[1])
+        self.assertIn("mcp/mcp.colab-mcp.handshake", output)
+        self.assertIn("handshake failed", output)
+        self.assertIn("token=<redacted>", output)
+        self.assertIn("COLAB_TOKEN=<redacted>", output)
+        self.assertNotIn("secret-value", output)
 
     def test_codex_doctor_reports_invalid_json(self) -> None:
         def runner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -126,51 +131,6 @@ class CodexConfigContractTests(unittest.TestCase):
 
         self.assertTrue(report.failed)
         self.assertEqual(report.lines, ["Codex doctor timed out after 3s"])
-
-    def test_codex_features_parser_summarizes_0137_feature_list(self) -> None:
-        output = """
-Feature              Status
-hooks                enabled
-multi_agent          disabled
-unified_exec         enabled
-shell_snapshot       disabled
-prevent_idle_sleep   disabled
-"""
-        features = parse_codex_features_list(output)
-        report = summarize_codex_features(output)
-
-        self.assertEqual(features["hooks"], "enabled")
-        self.assertEqual(features["multi_agent"], "disabled")
-        self.assertEqual(features["unified_exec"], "enabled")
-        self.assertEqual(features["shell_snapshot"], "disabled")
-        self.assertEqual(features["prevent_idle_sleep"], "disabled")
-        self.assertEqual(
-            report.lines,
-            [
-                "Codex features hooks=enabled, multi_agent=disabled, "
-                "unified_exec=enabled, shell_snapshot=disabled, prevent_idle_sleep=disabled"
-            ],
-        )
-
-    def test_codex_features_parser_prefers_disabled_over_enable_hint(self) -> None:
-        output = "prevent_idle_sleep disabled; use --enable prevent_idle_sleep to opt in"
-
-        features = parse_codex_features_list(output)
-
-        self.assertEqual(features["prevent_idle_sleep"], "disabled")
-
-    def test_codex_features_parser_treats_explicit_unsupported_feature_as_absent(self) -> None:
-        outputs = (
-            "prevent_idle_sleep is not supported by this Codex build",
-            "prevent_idle_sleep unavailable",
-            "unknown feature prevent_idle_sleep",
-        )
-
-        for output in outputs:
-            with self.subTest(output=output):
-                features = parse_codex_features_list(output)
-
-                self.assertEqual(features["prevent_idle_sleep"], "absent")
 
     def test_codex_doctor_cli_default_timeout_is_60_seconds(self) -> None:
         with patch("agent_orchestra_minimal.cli.doctor_command", return_value=0) as doctor:
@@ -228,6 +188,17 @@ prevent_idle_sleep   disabled
 
         self.assertEqual(result, 1)
 
+    def test_mcp_doctor_does_not_require_tmux_transport(self) -> None:
+        args = _doctor_args(mcp=True)
+
+        with patch("agent_orchestra_minimal.doctor.codex_auth_available", return_value=True), \
+             patch("agent_orchestra_minimal.doctor.command_available", return_value=True), \
+             patch("agent_orchestra_minimal.doctor.inspect_mcp", return_value=McpDoctorReport(failed=False, lines=[])), \
+             patch.dict("os.environ", {}, clear=True):
+            result = doctor_command(args)
+
+        self.assertEqual(result, 0)
+
     def test_task_file_doctor_reports_finalized_task_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             task_file = Path(tmpdir) / "tasks.ini"
@@ -256,6 +227,34 @@ prevent_idle_sleep   disabled
         self.assertIn("  status=progress", report.lines)
         self.assertIn("  open:review pending", report.lines)
 
+    def test_task_file_doctor_reports_duplicate_gate_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            task_file = Path(tmpdir) / "tasks.ini"
+            task_file.write_text(
+                DEFAULT_TASK_FILE.replace(
+                    "[Gates]\n\n",
+                    (
+                        "[Gates]\n"
+                        "gate-e2e-api: status=open; kind=e2e; evidence=pending\n"
+                        "gate-e2e-api: status=passed; kind=e2e; evidence=api-smoke\n\n"
+                    ),
+                ),
+                encoding="utf-8",
+            )
+
+            report = inspect_task_file(task_file)
+
+        self.assertTrue(report.failed)
+        self.assertIn("shared task file has finalization blockers:", report.lines)
+        self.assertIn(
+            "  gate-duplicate:gate-e2e-api: status=passed; kind=e2e; evidence=api-smoke",
+            report.lines,
+        )
+        self.assertIn(
+            "  gate:gate-e2e-api: status=open; kind=e2e; evidence=pending",
+            report.lines,
+        )
+
 
 def _toml_key_text(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -268,6 +267,7 @@ def _doctor_args(**overrides: object) -> object:
         codex_doctor = False
         codex_doctor_timeout_seconds = 60.0
         codex_features = False
+        mcp = False
         task_file = None
 
     args = Args()

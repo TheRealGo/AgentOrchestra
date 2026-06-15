@@ -52,7 +52,7 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
         workspace = root / "workspace"
         for path in (home, codex_home, workspace):
             path.mkdir(parents=True, exist_ok=True)
-        config_path = codex_home / "agent-orchestra.config.toml"
+        config_path = codex_home / "config.toml"
         config_path.write_text(codex_config(workspace, config_path), encoding="utf-8")
         config_path.chmod(0o600)
         _copy_auth(codex_home)
@@ -66,7 +66,7 @@ def run_probe(*, codex_binary: str = "codex", submit_key: str | None = None) -> 
                     "agent-orchestra",
                     "--no-alt-screen",
                     "--ask-for-approval",
-                    "never",
+                    "on-request",
                     "--sandbox",
                     "workspace-write",
                     "--cd",
@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--instruction-source")
     parser.add_argument("--instruction-text")
     parser.add_argument("--tmux-pane")
-    parser.add_argument("--initial-state", default="working")
+    parser.add_argument("--initial-state", default="ready")
     parser.add_argument("--auth-source")
     args = parser.parse_args(argv)
 

@@ -22,6 +22,10 @@ def decide_wake(task_file: SharedTaskFile, agent_state: AgentState) -> WakeDecis
             return WakeDecision(True, "main_status_progress")
         if task_file.status == "done" and task_file.has_open_work:
             return WakeDecision(True, "main_done_with_open_work")
+        if task_file.status == "done" and task_file.has_unresolved_acceptance:
+            return WakeDecision(True, "main_done_with_unresolved_acceptance")
+        if task_file.status == "done" and task_file.has_unresolved_gates:
+            return WakeDecision(True, "main_done_with_unresolved_gates")
         if task_file.status == "done" and task_file.has_unresolved_candidates:
             return WakeDecision(True, "main_done_with_unresolved_candidates")
         return WakeDecision(True, "main_has_finalization_blockers")

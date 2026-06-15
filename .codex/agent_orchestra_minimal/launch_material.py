@@ -1,13 +1,13 @@
 from __future__ import annotations
 import os
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
-from .launch_args import codex_launch_argv, editable_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
+from .launch_args import editable_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
+from .launch_env import build_launch_command, build_launch_env
 from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, validate_auth_source, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
 from .task_file import SharedTaskFile
@@ -29,6 +29,9 @@ class LaunchMaterial:
     env_shell_path: Path
     command_path: Path
     config_path: Path
+    cache_dir: Path
+    artifact_dir: Path
+    environment_dir: Path
     env: dict[str, str]
     command: dict[str, object]
 
@@ -48,6 +51,7 @@ def prepare_launch_material(
     auth_source: str | Path | None = None,
     codex_binary: str = "codex",
     codex_args: Sequence[str] = (),
+    initial_task_status: str = "done",
 ) -> LaunchMaterial:
     _validate_id(agent_id)
     kind = _normalize_kind(agent_kind)
@@ -60,7 +64,8 @@ def prepare_launch_material(
     agent_dir = run_root / "agents" / agent_id
     workspace, home, codex_home = agent_dir / "workspace", agent_dir / "home", agent_dir / "codex_home"
     state_file, env_path, env_shell_path, command_path = agent_dir / "state.json", agent_dir / "env.json", agent_dir / "env.sh", agent_dir / "command.json"
-    config_path = codex_home / "agent-orchestra.config.toml"
+    config_path = codex_home / "config.toml"
+    cache_dir, artifact_dir, environment_dir = agent_dir / "cache", agent_dir / "artifacts", agent_dir / "env"
     shared_task = Path(task_file).expanduser().resolve() if task_file else run_root / "tasks.ini"
     normalized_tmux_pane = optional_tmux_pane(tmux_pane)
     submit_key = normalize_submit_key(os.environ.get("AGENT_ORCHESTRA_TUI_SUBMIT_KEY"))
@@ -80,8 +85,12 @@ def prepare_launch_material(
     for directory in (workspace, home, codex_home):
         directory.mkdir(parents=True, exist_ok=True)
         directory.chmod(PRIVATE_DIR_MODE)
+    for directory in (cache_dir, artifact_dir, environment_dir):
+        remove_isolated_path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(PRIVATE_DIR_MODE)
     ensure_target_link(workspace / "target_project", target_root)
-    SharedTaskFile.initialize(shared_task)
+    SharedTaskFile.initialize(shared_task, status=initial_task_status)
     AgentState(
         agent_id=agent_id,
         agent_kind=kind,
@@ -98,6 +107,9 @@ def prepare_launch_material(
             access_roots=access_roots,
             task_file=shared_task,
             state_file=state_file,
+            cache_dir=cache_dir,
+            artifact_dir=artifact_dir,
+            environment_dir=environment_dir,
             assigned_text=assigned_text,
         ),
         encoding="utf-8",
@@ -106,43 +118,19 @@ def prepare_launch_material(
     install_codex_material(codex_home, workspace, config_path)
     install_auth_material(codex_home, auth_source)
     main_pane = main_tmux_pane(kind, normalized_tmux_pane)
-    env = {
-        "HOME": str(home),
-        "CODEX_HOME": str(codex_home),
-        "PYTHONPATH": str(codex_home),
-        "AGENT_ORCHESTRA_AGENT_ID": agent_id,
-        "AGENT_ORCHESTRA_AGENT_KIND": kind,
-        "AGENT_ORCHESTRA_AGENT_DIR": str(agent_dir),
-        "AGENT_ORCHESTRA_RUN_DIR": str(run_root),
-        "AGENT_ORCHESTRA_TASK_FILE": str(shared_task),
-        "AGENT_ORCHESTRA_AGENT_STATE": str(state_file),
-        "AGENT_ORCHESTRA_TARGET_PROJECT": str(target_root),
-        "AGENT_ORCHESTRA_ACCESS_ROOTS": os.pathsep.join(str(root) for root in access_roots),
-        "AGENT_ORCHESTRA_EDIT_ROOT": str(access_roots[-1]),
-        "AGENT_ORCHESTRA_PYTHON": sys.executable,
-        "AGENT_ORCHESTRA_TUI_SUBMIT_KEY": submit_key,
-    }
-    if protocol_root := os.environ.get("AGENT_ORCHESTRA_REPO_ROOT"):
-        env["AGENT_ORCHESTRA_REPO_ROOT"] = str(Path(protocol_root).expanduser().resolve())
-    if normalized_tmux_pane:
-        env["AGENT_ORCHESTRA_TMUX_PANE"] = normalized_tmux_pane
-    if main_pane:
-        env["AGENT_ORCHESTRA_MAIN_TMUX_PANE"] = main_pane
-    argv = codex_launch_argv(
-        codex_binary,
-        workspace=str(workspace),
-        target_project=str(target_root),
-        access_roots=tuple(str(root) for root in access_roots),
-        extra_args=extra_codex_args,
+    env = build_launch_env(
+        home=home, codex_home=codex_home, agent_id=agent_id, agent_kind=kind,
+        agent_dir=agent_dir, run_root=run_root, task_file=shared_task,
+        state_file=state_file, target_root=target_root, access_roots=access_roots,
+        cache_dir=cache_dir, artifact_dir=artifact_dir, environment_dir=environment_dir,
+        mcp_source_config=config_path, submit_key=submit_key,
+        tmux_pane=normalized_tmux_pane, main_pane=main_pane,
     )
-    command = {
-        "argv": argv,
-        "cwd": str(workspace),
-        "env_file": str(env_path),
-        "env_shell_file": str(env_shell_path),
-        "config_profile": "agent-orchestra",
-        "does_not_launch": True,
-    }
+    command = build_launch_command(
+        codex_binary=codex_binary, workspace=workspace, run_root=run_root, target_root=target_root,
+        access_roots=access_roots, extra_args=extra_codex_args, env_path=env_path,
+        env_shell_path=env_shell_path, config_path=config_path,
+    )
     write_json(env_path, env)
     write_env_shell(env_shell_path, env)
     write_json(command_path, command)
@@ -160,6 +148,9 @@ def prepare_launch_material(
         env_shell_path=env_shell_path,
         command_path=command_path,
         config_path=config_path,
+        cache_dir=cache_dir,
+        artifact_dir=artifact_dir,
+        environment_dir=environment_dir,
         env=env,
         command=command,
     )

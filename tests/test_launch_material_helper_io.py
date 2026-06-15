@@ -54,11 +54,53 @@ class LaunchMaterialHelperIOTests(unittest.TestCase):
             self.assertTrue((pro_dir / "command.json").is_file())
             self.assertTrue((pro_dir / "env.json").is_file())
             self.assertTrue((pro_dir / "env.sh").is_file())
+            pro_state = json.loads((pro_dir / "state.json").read_text(encoding="utf-8"))
             pro_env = json.loads((pro_dir / "env.json").read_text(encoding="utf-8"))
+            self.assertEqual(pro_state["state"], "ready")
             self.assertEqual(pro_env["AGENT_ORCHESTRA_TASK_FILE"], str(main.task_file))
             self.assertEqual(pro_env["AGENT_ORCHESTRA_TMUX_PANE"], "%12")
             self.assertEqual(pro_env["AGENT_ORCHESTRA_MAIN_TMUX_PANE"], main.env["AGENT_ORCHESTRA_TMUX_PANE"])
             self.assertEqual(pro_env["PYTHONPATH"], str(pro_dir / "codex_home"))
+
+    def test_installed_helper_preserves_explicit_working_initial_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            main = prepare_launch_material(
+                run_dir=Path(tmpdir) / "run",
+                agent_id="main",
+                agent_kind="MainAgent",
+                target_project=ROOT,
+                instruction_text="Main instruction.",
+                tmux_pane="%main",
+            )
+
+            helper = main.codex_home / "agent_orchestra_minimal" / "prepare_agent_launch.py"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(helper),
+                    "--agent-id",
+                    "pro-explicit-working",
+                    "--lead-layer",
+                    "15 prompts",
+                    "--instruction-text",
+                    "Professional layer instruction.",
+                    "--tmux-pane",
+                    "%12",
+                    "--initial-state",
+                    "working",
+                ],
+                env=os.environ | main.env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            pro_state = json.loads(
+                (main.run_dir / "agents" / "pro-explicit-working" / "state.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(pro_state["state"], "working")
 
     def test_installed_helper_resolves_protocol_layer_from_main_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

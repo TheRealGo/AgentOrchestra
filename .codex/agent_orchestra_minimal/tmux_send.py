@@ -20,6 +20,7 @@ else:
 
 BUFFER_PREFIX = "agent-orchestra-msg"
 MIN_CLI_POLLS_PER_ATTEMPT = 60
+MIN_SHORT_CLI_POLLS_PER_ATTEMPT = 5
 
 
 def send_text(
@@ -32,6 +33,7 @@ def send_text(
     poll_interval_seconds: float = 0.2,
     polls_per_attempt: int = 1,
     require_fresh_capture: bool = True,
+    clear_default_composer: bool = True,
 ) -> DeliveryResult:
     return send_buffered_text(
         pane_target,
@@ -43,6 +45,7 @@ def send_text(
         poll_interval_seconds=poll_interval_seconds,
         polls_per_attempt=polls_per_attempt,
         require_fresh_capture=require_fresh_capture,
+        clear_default_composer=clear_default_composer,
     )
 
 
@@ -54,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-retries", type=int, default=2)
     parser.add_argument("--poll-interval-seconds", type=float, default=0.5)
     parser.add_argument("--polls-per-attempt", type=int, default=60)
+    parser.add_argument(
+        "--allow-short-polls",
+        action="store_true",
+        help="allow bounded optional consultations to use fewer polls than initial task delivery",
+    )
     args = parser.parse_args(argv)
 
     result = send_text(
@@ -62,7 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         submit_key=args.submit_key,
         max_retries=args.max_retries,
         poll_interval_seconds=args.poll_interval_seconds,
-        polls_per_attempt=_effective_cli_polls_per_attempt(args.polls_per_attempt),
+        polls_per_attempt=_effective_cli_polls_per_attempt(
+            args.polls_per_attempt,
+            allow_short_polls=args.allow_short_polls,
+        ),
         require_fresh_capture=True,
     )
     if result.accepted:
@@ -74,8 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
-def _effective_cli_polls_per_attempt(value: int) -> int:
-    return min(max(value, MIN_CLI_POLLS_PER_ATTEMPT), MAX_POLLS_PER_ATTEMPT)
+def _effective_cli_polls_per_attempt(value: int, *, allow_short_polls: bool = False) -> int:
+    minimum = MIN_SHORT_CLI_POLLS_PER_ATTEMPT if allow_short_polls else MIN_CLI_POLLS_PER_ATTEMPT
+    return min(max(value, minimum), MAX_POLLS_PER_ATTEMPT)
 
 
 if __name__ == "__main__":

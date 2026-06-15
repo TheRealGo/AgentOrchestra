@@ -31,9 +31,9 @@ Pasting text into the composer is not delivery.
 Use the runtime delivery helper for initial tasks, follow-up messages, review
 requests, and ProfessionalAgent-to-ProfessionalAgent consultation. It pastes,
 submits, captures the target pane, retries submit when the message is still in
-the composer, waits for a busy peer to return to an input-ready prompt before
-pasting, and returns non-zero if the target Codex TUI does not accept the
-message:
+the composer, clears non-agent stale composer fragments before pasting, waits
+for a busy peer to return to an input-ready prompt before pasting, and returns
+non-zero if the target Codex TUI does not accept the message:
 
 ```sh
 "$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.tmux_send --pane "$PANE" --text "$TEXT" --submit-key "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}" --poll-interval-seconds 0.5 --polls-per-attempt 60
@@ -50,6 +50,30 @@ the communication failure explicitly. If the target Agent is busy and the work
 can continue asynchronously, record the attempted consultation or review request
 in the shared task file, scoped report, or decision log with `not delivered`
 evidence instead of treating it as a blocking review.
+If a capture shows only a tail fragment of a previous message at the composer,
+for example `commands, blocking_objection=...`, treat it as stale input and use
+the helper again so it clears the composer and sends the complete message from a
+tmux buffer. Do not append a second assignment to a partial prompt.
+
+For optional peer consultation that must not stall the run, use the same helper
+with a short bounded window and record timeout evidence instead of waiting for a
+busy peer:
+
+```sh
+"$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.tmux_send --pane "$PANE" --text "$TEXT" --submit-key "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}" --poll-interval-seconds 0.5 --polls-per-attempt 10 --allow-short-polls
+```
+
+Do not use short polling for initial ProfessionalAgent assignments, required
+review requests, or finalization instructions. Those still need confirmed
+delivery or an explicit recovery path.
+
+For ProfessionalAgent assignments, send the complete scoped task in one
+confirmed delivery after the Codex TUI is ready. Do not send a preliminary
+"receipt only" message, do not rely on default composer placeholders, and do
+not issue contradictory follow-up instructions while the first task is still
+being accepted. If a capture still shows `Find and fix...`, `Improve
+documentation...`, `Implement {feature}`, or another default prompt at the
+composer after delivery, the assignment is not confirmed.
 
 Submit Codex TUI input with `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`. Do not
 prepend `Space`: extra characters become part of the message and can change
@@ -73,6 +97,13 @@ responding, it was not submitted; first verify that the pane is the actual
 Codex TUI pane, then submit with `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}` and
 re-check the captured output. If a retry still leaves the message queued, report
 the communication failure instead of silently continuing.
+After interrupting a peer with `C-c`, do not type a long recovery instruction
+with raw `tmux send-keys`. The Codex TUI may be at a special "Conversation
+interrupted" prompt and long raw input can split across the composer. Use the
+delivery helper for the recovery instruction, or paste through a tmux buffer and
+verify acceptance with capture evidence. If both `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`
+and the alternate submit key leave the text visible, record a delivery defect
+and stop relying on that peer for finalization evidence.
 
 Identify the sender in the message body, for example `MainAgent:` or
 `ProfessionalAgent runtime-engineer:`.

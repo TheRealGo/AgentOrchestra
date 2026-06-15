@@ -103,6 +103,7 @@ def codex_launch_argv(
     workspace: str,
     target_project: str,
     access_roots: Sequence[str] = (),
+    runtime_roots: Sequence[str] = (),
     extra_args: Sequence[str] = (),
     auto_enable_prevent_idle_sleep: bool | None = None,
 ) -> list[str]:
@@ -116,7 +117,7 @@ def codex_launch_argv(
         "--profile",
         "agent-orchestra",
         "--ask-for-approval",
-        "never",
+        "on-request",
         "--sandbox",
         "workspace-write",
         "--enable",
@@ -132,6 +133,9 @@ def codex_launch_argv(
         argv.extend(["--enable", "prevent_idle_sleep"])
     for root in access_roots:
         if root != target_project:
+            argv.extend(["--add-dir", root])
+    for root in runtime_roots:
+        if root != target_project and root not in access_roots:
             argv.extend(["--add-dir", root])
     argv.extend(extra_args)
     return argv
