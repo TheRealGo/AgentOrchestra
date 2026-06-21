@@ -24,6 +24,14 @@ class DoctorServerProcessTests(unittest.TestCase):
         self.assertTrue(args.server_processes)
         self.assertEqual(args.server_process_root, str(default_run_root()))
 
+    def test_doctor_cli_accepts_autonomy_policy_flag(self) -> None:
+        with patch("agent_orchestra_minimal.cli.doctor_command", return_value=0) as doctor:
+            result = cli_main(["doctor", "--target-project", str(ROOT), "--autonomy-policy"])
+
+        self.assertEqual(result, 0)
+        args = doctor.call_args.args[0]
+        self.assertTrue(args.autonomy_policy)
+
     def test_server_process_doctor_reports_live_recorded_helpers(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -36,6 +44,8 @@ class DoctorServerProcessTests(unittest.TestCase):
                             "status": "running",
                             "pid": 1234,
                             "base_url": "http://127.0.0.1:3000",
+                            "owner_agent_id": "pro-env-22",
+                            "cleanup_command": "python -m agent_orchestra_minimal.server_process stop",
                         },
                         "old": {"status": "stopped", "pid": 5678},
                     }
@@ -49,6 +59,8 @@ class DoctorServerProcessTests(unittest.TestCase):
         output = "\n".join(report.lines)
         self.assertIn("live server processes remain", output)
         self.assertIn("web status=running pid=1234", output)
+        self.assertIn("owner=pro-env-22", output)
+        self.assertIn("cleanup=recorded", output)
         self.assertNotIn("old status=stopped", output)
 
     def test_server_process_doctor_passes_when_no_live_helpers_remain(self) -> None:

@@ -7,6 +7,7 @@ from pathlib import Path
 from time import sleep
 
 from .agent_state import AgentState
+from .agent_state_doctor import finalized_task_file_agent_state_blockers
 from .rekick import WakeDecision, decide_wake
 from .task_file import SharedTaskFile
 from .tmux_delivery import DEFAULT_SUBMIT_KEY, DeliveryResult, Runner, normalize_submit_key
@@ -123,6 +124,13 @@ def run_stop_hook(
         task = SharedTaskFile.read(task_file)
     except (OSError, ValueError):
         return _handle_invalid_task_file(state, pane_target, main_pane_target, submit_key, runner)
+    if state.is_main and task.is_finalized and finalized_task_file_agent_state_blockers(task_file):
+        return _send_wake_decision(
+            pane_target,
+            reason="main_done_with_unretired_professional_agents",
+            submit_key=submit_key,
+            runner=runner,
+        )
     decision = decide_wake(task, state)
     if decision.should_wake:
         return _send_wake_decision(

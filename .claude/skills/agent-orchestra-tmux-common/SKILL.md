@@ -46,6 +46,26 @@ checks are only delivery confirmation, not supervision.
 If the helper exits non-zero, do not continue as if the message was delivered.
 Capture the target pane, verify the pane id and TUI state, and report or recover
 the communication failure explicitly.
+When a peer consultation response is needed as review evidence but the receiver
+is still working or otherwise input-not-ready, do not drop the response and do
+not treat a failed synchronous paste as clean zero-issue evidence. Queue the
+response into the run-scoped mailbox and later drain it after the receiver is
+input-ready:
+
+```sh
+"$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.tmux_send --pane "$PANE" --text "$TEXT" --submit-key "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}" --poll-interval-seconds 0.5 --polls-per-attempt 60 --queue-if-input-not-ready --sender "$AGENT_ORCHESTRA_AGENT_ID" --topic "peer consultation response" --result-json "$AGENT_ORCHESTRA_ARTIFACT_DIR/tmux-send-peer-response.json"
+"$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.tmux_send --pane "$PANE" --text "drain queued peer consultations" --drain-mailbox --submit-key "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}" --poll-interval-seconds 0.5 --polls-per-attempt 60 --result-json "$AGENT_ORCHESTRA_ARTIFACT_DIR/tmux-drain-peer-response.json"
+```
+
+The first command exits successfully only because the response was durably
+stored under `$AGENT_ORCHESTRA_RUN_DIR/mailbox/tmux-peer-consultations/`; it is
+not accepted delivery. Record the queued result as unresolved consultation
+evidence until a later drain JSON shows the queued message was accepted and
+removed. A failed drain remains a delivery defect and blocks clean zero-issue
+completion. Normal later `tmux_send` delivery to the same pane drains any
+queued mailbox messages before sending the new message; if that automatic drain
+fails, the new message is not sent and the result JSON remains a delivery
+defect.
 
 Submit Claude Code TUI input with `${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}`. Do
 not prepend `Space`: extra characters become part of the message and can change

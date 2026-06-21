@@ -20,7 +20,7 @@ HOOK_COMMAND = "python3 $CODEX_HOME/hooks/agent_orchestra_stop_hook.py"
 HOOK_TRUSTED_HASH = "sha256:15aa200b589589dbf1aa39731c5360abf465ca6e1a9a0671d16eada7320259d4"
 DISABLE_MCP_INHERITANCE_ENV = "AGENT_ORCHESTRA_DISABLE_MCP_INHERITANCE"
 MCP_SOURCE_CONFIG_ENV = "AGENT_ORCHESTRA_MCP_SOURCE_CONFIG"
-DEFAULT_MCP_STARTUP_TIMEOUT_SEC = 90
+DEFAULT_MCP_STARTUP_TIMEOUT_SEC = 30
 SAFE_TOML_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -161,7 +161,7 @@ def _bounded_mcp_server(value: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(value)
     if "command" in result:
         timeout = result.get("startup_timeout_sec")
-        if not isinstance(timeout, int) or timeout < DEFAULT_MCP_STARTUP_TIMEOUT_SEC:
+        if not isinstance(timeout, int) or timeout < 1 or timeout > DEFAULT_MCP_STARTUP_TIMEOUT_SEC:
             result["startup_timeout_sec"] = DEFAULT_MCP_STARTUP_TIMEOUT_SEC
     return result
 

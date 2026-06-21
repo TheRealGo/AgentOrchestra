@@ -102,6 +102,24 @@ or an equivalent reproducible harness before escalating. If no autonomous route
 remains, report `needs_user` or a blocking objection with the routes attempted,
 evidence paths, and the exact credential, approval, network access, service,
 hardware, or scope change needed to complete the requirement.
+Do not classify routine in-scope work as `needs_user`. Ordinary scoped edits,
+tests, ephemeral dependency installation, dev-server or Docker compose startup,
+pane recovery, bounded tool approval retries, and verification retries are work
+to continue when they fit the active user permission and project policy. If host
+Codex approval UI blocks low-risk in-scope work, report the exact prompt to
+MainAgent, try an equivalent autonomous route, and keep the related requirement
+or gate unresolved unless concrete evidence exists. Reserve `needs_user` for
+external action the AgentTeam cannot perform or safely infer, such as
+credentials, account/provider setup, payment, physical device interaction,
+production/public release approval, destructive or irreversible action,
+legal/security judgment, or explicit scope expansion.
+Low-risk local browser, simulator, iOS, mobile, and production-like local E2E
+reruns are autonomous verification when scoped to the project/run and required
+by active gates. Run-scoped helper process cleanup is autonomous only with
+known process identity plus current-run or recorded-port ownership, and Docker
+cleanup is autonomous only when compose project or resource name proves
+current-run scope. CAO or operator approval used merely to pass these actions
+is an AgentOrchestra autonomy defect, not zero-issue evidence.
 
 Use Codex-native SubAgents proactively when they improve depth, critique,
 implementation confidence, or evidence review. Before `ready_for_review` on

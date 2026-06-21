@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / ".codex"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent_orchestra_minimal.tmux_send import send_text  # noqa: E402
-from tmux_send_helpers import FakeTmuxSend  # noqa: E402
+from tmux_send_helpers import FakeTmuxSend, submit_key_calls  # noqa: E402
 
 
 class TmuxSendEdgeCaseTests(unittest.TestCase):
@@ -99,13 +99,14 @@ class TmuxSendEdgeCaseTests(unittest.TestCase):
         fake = FakeTmuxSend(
             captures=[
                 "› MainAgent to pro-runtime-16:\n  Task: Review SPEC.md\n  Constraints: stay scoped\n",
+                "› MainAgent to pro-runtime-16:\n  Task: Review SPEC.md\n  Constraints: stay scoped\n",
                 "› MainAgent to pro-runtime-16:\n\nWorking\n",
             ]
         )
 
         result = send_text("%8", message, runner=fake)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
         self.assertEqual(len(send_key_calls), 3)

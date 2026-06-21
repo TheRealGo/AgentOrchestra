@@ -41,6 +41,26 @@ class CandidateLedgerContractTests(unittest.TestCase):
 
                 self.assertTrue(task_file.has_unresolved_candidates)
 
+    def test_completed_candidate_evidence_cannot_be_placeholder(self) -> None:
+        for evidence in ("pending", "TBD", "todo", "unknown"):
+            with self.subTest(evidence=evidence):
+                task_file = SharedTaskFile.parse(
+                    TASK_FILE.format(
+                        candidate=(
+                            "candidate-1: disposition=rejected; "
+                            "summary=no remaining issue; "
+                            f"evidence={evidence}"
+                        )
+                    )
+                )
+
+                self.assertTrue(task_file.has_unresolved_candidates)
+                self.assertIn(
+                    "candidate:candidate-1: disposition=rejected; "
+                    f"summary=no remaining issue; evidence={evidence}",
+                    task_file.finalization_blockers,
+                )
+
     def test_completed_candidate_evidence_may_contain_colons(self) -> None:
         candidates = (
             "candidate-1: disposition=integrated; summary=retry send; evidence=tests/test.py:12",

@@ -31,6 +31,7 @@ class LaunchMaterial:
 
 RUNTIME_FILES = (
     "agent_state.py",
+    "agent_state_doctor.py",
     "candidate_ledger.py",
     "claude_settings.py",
     "cli.py",
@@ -44,6 +45,7 @@ RUNTIME_FILES = (
     "task_file.py",
     "tmux_targets.py",
     "tmux_delivery.py",
+    "tmux_peer_mailbox.py",
     "rekick.py",
     "tmux_send.py",
     "tmux_wake.py",

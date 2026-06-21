@@ -3,21 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from .agent_state_doctor import finalized_task_file_agent_state_blockers
+from .autonomy_policy import autonomy_policy_diagnostic_lines
 from .codex_config import inspect_mcp_inheritance, mcp_command_by_server
 from .codex_features import run_codex_features_list
+from .doctor_codex import run_codex_doctor, summarize_codex_doctor
 from .prepare_agent_launch import run_probe
 from .server_process_runtime import alive, read_manifest
 from .task_file import SharedTaskFile
-
-
-SECRET_ASSIGNMENT = re.compile(r"\b((?:[A-Za-z0-9_]*_)?token)=([^\s,)]+)", re.IGNORECASE)
+from .tmux_liveness import inspect_pane_liveness
 
 
 def doctor_command(args: argparse.Namespace) -> int:
@@ -91,6 +91,22 @@ def doctor_command(args: argparse.Namespace) -> int:
             return 1
         for line in report.lines:
             print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if getattr(args, "autonomy_policy", False):
+        for line in autonomy_policy_diagnostic_lines():
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
+    if tmux_liveness_pane := getattr(args, "tmux_liveness_pane", None):
+        report = inspect_tmux_liveness(
+            tmux_liveness_pane,
+            samples=args.tmux_liveness_samples,
+            interval_seconds=args.tmux_liveness_interval_seconds,
+        )
+        if report.failed:
+            print("agent-orchestra doctor: failed", file=sys.stderr)
+            for line in report.lines:
+                print(f"- {line}", file=sys.stderr)
+            return 1
+        for line in report.lines:
+            print(f"agent-orchestra doctor: {line}", file=sys.stderr)
     print("agent-orchestra doctor: ok")
     return 0
 
@@ -105,12 +121,6 @@ def codex_auth_available() -> bool:
 
 def command_available(command: str) -> bool:
     return shutil.which(command) is not None
-
-
-class CodexDoctorReport:
-    def __init__(self, *, failed: bool, lines: list[str]) -> None:
-        self.failed = failed
-        self.lines = lines
 
 
 class TaskFileDoctorReport:
@@ -131,24 +141,24 @@ class ServerProcessDoctorReport:
         self.lines = lines
 
 
+class TmuxLivenessDoctorReport:
+    def __init__(self, *, failed: bool, lines: list[str]) -> None:
+        self.failed = failed
+        self.lines = lines
+
+
 def inspect_task_file(path: Path) -> TaskFileDoctorReport:
     try:
         task_file = SharedTaskFile.read(path)
     except (OSError, ValueError) as exc:
-        return TaskFileDoctorReport(
-            failed=True,
-            lines=[f"shared task file invalid or unreadable: {path}: {exc}"],
-        )
-    if task_file.finalization_blockers:
-        return TaskFileDoctorReport(
-            failed=True,
-            lines=["shared task file has finalization blockers:"]
-            + [f"  {blocker}" for blocker in task_file.finalization_blockers],
-        )
-    return TaskFileDoctorReport(
-        failed=False,
-        lines=[f"shared task file finalized: {path}"],
-    )
+        return TaskFileDoctorReport(failed=True, lines=[f"shared task file invalid or unreadable: {path}: {exc}"])
+    blockers = list(task_file.finalization_blockers)
+    if task_file.is_finalized:
+        blockers.extend(finalized_task_file_agent_state_blockers(path))
+    if blockers:
+        lines = ["shared task file has finalization blockers:"] + [f"  {blocker}" for blocker in blockers]
+        return TaskFileDoctorReport(failed=True, lines=lines)
+    return TaskFileDoctorReport(failed=False, lines=[f"shared task file finalized: {path}"])
 
 
 def inspect_mcp(*, command_checker: Any = command_available) -> McpDoctorReport:
@@ -201,8 +211,11 @@ def inspect_server_processes(root: Path, *, alive_checker: Any = alive) -> Serve
             if pid <= 0 or not alive_checker(pid):
                 continue
             base_url = str(server_entry.get("base_url") or "")
+            owner = str(server_entry.get("owner_agent_id") or "unknown")
+            cleanup = "recorded" if server_entry.get("cleanup_command") else "missing"
             live_entries.append(
-                f"{manifest}: {name} status={server_entry.get('status')} pid={pid} base_url={base_url}"
+                f"{manifest}: {name} status={server_entry.get('status')} pid={pid} "
+                f"base_url={base_url} owner={owner} cleanup={cleanup}"
             )
 
     lines = [f"server process manifests scanned: {len(manifests)} under {root}"]
@@ -217,83 +230,27 @@ def inspect_server_processes(root: Path, *, alive_checker: Any = alive) -> Serve
     return ServerProcessDoctorReport(failed=bool(unreadable or live_entries), lines=lines)
 
 
-def run_codex_doctor(
+def inspect_tmux_liveness(
+    pane_target: str,
     *,
-    timeout_seconds: float,
-    runner: Any = subprocess.run,
-) -> CodexDoctorReport:
+    samples: int,
+    interval_seconds: float,
+) -> TmuxLivenessDoctorReport:
     try:
-        result = runner(
-            ["codex", "doctor", "--json"],
-            check=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout_seconds,
+        liveness = inspect_pane_liveness(
+            pane_target,
+            samples=samples,
+            interval_seconds=interval_seconds,
         )
-    except subprocess.TimeoutExpired:
-        return CodexDoctorReport(
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        return TmuxLivenessDoctorReport(
             failed=True,
-            lines=[f"Codex doctor timed out after {timeout_seconds:g}s"],
+            lines=[f"tmux pane liveness check failed for {pane_target}: {exc}"],
         )
-    except OSError as exc:
-        return CodexDoctorReport(
-            failed=True,
-            lines=[f"Codex doctor could not run: {exc}"],
-        )
-
-    stdout = result.stdout.strip()
-    if not stdout:
-        stderr = result.stderr.strip()
-        detail = f": {stderr}" if stderr else ""
-        return CodexDoctorReport(
-            failed=True,
-            lines=[f"Codex doctor returned no JSON output{detail}"],
-        )
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        return CodexDoctorReport(
-            failed=True,
-            lines=[f"Codex doctor returned invalid JSON: {exc.msg}"],
-        )
-    if not isinstance(payload, dict):
-        return CodexDoctorReport(
-            failed=True,
-            lines=[f"Codex doctor returned JSON {type(payload).__name__}, expected object"],
-        )
-    return summarize_codex_doctor(payload, returncode=result.returncode)
-
-
-def summarize_codex_doctor(payload: dict[str, Any], *, returncode: int) -> CodexDoctorReport:
-    status = str(payload.get("overallStatus", "unknown"))
-    version = str(payload.get("codexVersion", "unknown"))
-    failed = status == "fail" or returncode != 0
-    lines = [f"Codex doctor overallStatus={status} version={version}"]
-
-    checks = payload.get("checks", {})
-    if isinstance(checks, dict):
-        for check_id in sorted(checks):
-            check = checks[check_id]
-            if not isinstance(check, dict):
-                continue
-            check_status = str(check.get("status", "unknown"))
-            if check_status in {"ok", "idle"}:
-                continue
-            category = str(check.get("category", "unknown"))
-            summary = _redact_diagnostic_text(str(check.get("summary", "")).strip())
-            line = f"Codex doctor {check_status}: {category}/{check_id}"
-            if summary:
-                line = f"{line}: {summary}"
-            remediation = _redact_diagnostic_text(str(check.get("remediation", "") or "").strip())
-            if remediation:
-                line = f"{line} ({remediation})"
-            lines.append(line)
-
-    if len(lines) == 1 and status == "ok":
-        lines[0] = f"Codex doctor ok version={version}"
-    return CodexDoctorReport(failed=failed, lines=lines)
-
-
-def _redact_diagnostic_text(text: str) -> str:
-    return SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", text)
+    lines = [
+        f"tmux pane {pane_target} state={liveness.state} changed={str(liveness.changed).lower()}",
+        f"tmux pane reason: {liveness.reason}",
+    ]
+    if liveness.stale_working:
+        lines.append("tmux pane stale Working requires interrupt, recovery, blocker, or relaunch evidence")
+    return TmuxLivenessDoctorReport(failed=liveness.stale_working, lines=lines)

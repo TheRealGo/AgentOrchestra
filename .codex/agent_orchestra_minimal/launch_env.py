@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .codex_config import inspect_mcp_inheritance
-from .launch_args import codex_launch_argv
+from .launch_args import codex_approval_policy_for_target, codex_launch_argv
 
 
 def build_launch_env(
@@ -22,6 +22,7 @@ def build_launch_env(
     state_file: Path,
     target_root: Path,
     access_roots: tuple[Path, ...],
+    edit_root: Path,
     cache_dir: Path,
     artifact_dir: Path,
     environment_dir: Path,
@@ -44,7 +45,7 @@ def build_launch_env(
         "AGENT_ORCHESTRA_AGENT_STATE": str(state_file),
         "AGENT_ORCHESTRA_TARGET_PROJECT": str(target_root),
         "AGENT_ORCHESTRA_ACCESS_ROOTS": os.pathsep.join(str(root) for root in access_roots),
-        "AGENT_ORCHESTRA_EDIT_ROOT": str(access_roots[-1]),
+        "AGENT_ORCHESTRA_EDIT_ROOT": str(edit_root),
         "AGENT_ORCHESTRA_CACHE_DIR": str(cache_dir),
         "AGENT_ORCHESTRA_ARTIFACT_DIR": str(artifact_dir),
         "AGENT_ORCHESTRA_ENV_DIR": str(environment_dir),
@@ -75,6 +76,7 @@ def build_launch_command(
     config_path: Path,
 ) -> dict[str, object]:
     mcp = inspect_mcp_inheritance(config_path)
+    approval_policy = codex_approval_policy_for_target(target_root)
     argv = codex_launch_argv(
         codex_binary,
         workspace=str(workspace),
@@ -82,6 +84,7 @@ def build_launch_command(
         access_roots=tuple(str(root) for root in access_roots),
         runtime_roots=(str(run_root),),
         extra_args=extra_args,
+        approval_policy=approval_policy,
     )
     return {
         "argv": argv,
@@ -91,6 +94,7 @@ def build_launch_command(
         "env_shell_file": str(env_shell_path),
         "runtime_access_roots": [str(run_root)],
         "config_profile": "agent-orchestra",
+        "approval_policy": approval_policy,
         "mcp_servers": list(mcp.servers),
         "mcp_inheritance_disabled": not mcp.enabled,
         "does_not_launch": True,

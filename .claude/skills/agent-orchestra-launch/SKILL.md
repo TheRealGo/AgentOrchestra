@@ -131,6 +131,14 @@ tmux send-keys -t "$PANE" Enter  # confirm; composer appears, Agent runs unatten
 Capture the pane again to confirm the composer (not the gate) is showing before
 sending the ProfessionalAgent's task. If the gate is still up, the task keystrokes
 would be swallowed by the dialog.
+Also verify the launched pane is the intended ProfessionalAgent process:
+`tmux display-message -p -t "$PANE" '#{session_name}:#{window_index}.#{pane_index} #{pane_id} #{pane_current_command} #{pane_current_path}'`.
+The returned pane id must match the pane created for that Agent, the session
+must be the current dedicated orchestra session, `pane_current_command` must be
+the Claude Code process, and `pane_current_path` must match `command.json`
+`cwd` or the prepared Agent workspace. A pane still running a shell in the
+MainAgent workspace is a failed ProfessionalAgent launch; do not send task text
+or probe commands such as `echo launch-test` or `paste-test` to it.
 
 If `env.sh` is not available, regenerate launch material rather than pasting
 every environment variable into the pane. This is launch hygiene, not a wrapper

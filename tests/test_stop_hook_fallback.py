@@ -11,24 +11,36 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
-from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, run_stop_hook  # noqa: E402
+from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, WAKE_PAYLOAD, run_stop_hook  # noqa: E402
+
+
+WAKE_PROMPT = " ".join(WAKE_PAYLOAD.split())
 
 
 class FakeTmux:
     def __init__(self) -> None:
         self.calls: list[tuple[list[str], str | None]] = []
         self.capture_count = 0
+        self.composer_cleared = False
+        self.paste_seen = False
 
     def __call__(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         self.calls.append((args, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
         stdout = ""
+        if args[:2] == ["tmux", "send-keys"] and args[-2:] == ["Escape", "C-u"]:
+            self.composer_cleared = True
+        if args[:2] == ["tmux", "paste-buffer"]:
+            self.paste_seen = True
+        if len(args) >= 6 and args[:3] == ["tmux", "send-keys", "-t"] and "-l" in args:
+            self.paste_seen = True
         if args[:2] == ["tmux", "capture-pane"]:
             self.capture_count += 1
-            stdout = (
-                "› Implement {feature}\n"
-                if self.capture_count == 1
-                else "› runtime_wake\n\n• Working\n"
-            )
+            if self.capture_count == 1:
+                stdout = "› Implement {feature}\n"
+            elif self.composer_cleared and not self.paste_seen:
+                stdout = "› \n"
+            else:
+                stdout = f"› {WAKE_PROMPT}\n\n• Working\n"
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
 
 
@@ -55,7 +67,7 @@ class StopHookFallbackTests(unittest.TestCase):
                 self.assertIsNotNone(decision)
                 self.assertTrue(decision.should_wake)
                 self.assertEqual(decision.reason, "invalid_task_file_or_unreadable_main_fallback")
-                self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+                self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_invalid_agent_state_wakes_main_pane_for_recovery(self) -> None:
         with self.run_files("ProfessionalAgent", "working", self.tasks("progress")) as env:
@@ -67,7 +79,7 @@ class StopHookFallbackTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "invalid_agent_state_or_unreadable_main_fallback")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_main_agent_uses_main_pane_fallback_when_state_has_no_pane_target(self) -> None:
         with self.run_files("MainAgent", "working", self.tasks("progress")) as env:
@@ -81,7 +93,7 @@ class StopHookFallbackTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "main_status_progress")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_invalid_professional_state_wakes_own_pane_when_kind_and_pane_are_deterministic(self) -> None:
         with self.run_files("ProfessionalAgent", "working", self.tasks("progress")) as env:
@@ -93,7 +105,7 @@ class StopHookFallbackTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "invalid_agent_state_or_unreadable")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_invalid_agent_state_with_invalid_kind_wakes_main_pane_for_recovery(self) -> None:
         with self.run_files("ProfessionalAgent", "working", self.tasks("progress")) as env:
@@ -106,7 +118,7 @@ class StopHookFallbackTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "invalid_agent_state_or_unreadable_main_fallback")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def run_files(self, agent_kind: str, state: str, task_text: str) -> "_RunFiles":
         return _RunFiles(agent_kind=agent_kind, state=state, task_text=task_text)

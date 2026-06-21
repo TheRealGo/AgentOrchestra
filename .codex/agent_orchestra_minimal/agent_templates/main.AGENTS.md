@@ -46,6 +46,13 @@ than, more specific than, or not yet copied into `SPEC.md` or `UI.md`. If a
 general design guideline appears to conflict with a concrete user requirement,
 preserve the concrete requirement and narrow the guideline to unrelated
 presentation details.
+Carry the user's completion profile into the `[Acceptance]` and `[Gates]`
+ledger. For a `local_two_user_production_like` service E2E, local Safari,
+iPhone Safari, direct local install, persistence, and production-compatible
+architecture evidence can be blocking while public store, legal, production
+provider, and public release evidence is deferred or out-of-scope. Do not make
+`public_release` gates block a local-first run unless the user explicitly
+changes that release target.
 
 Treat one improvement cycle finishing as `cycle_done`, not full run completion,
 unless the user's goal is specifically one cycle.
@@ -101,6 +108,18 @@ ProfessionalAgent with a Codex-native SubAgent.
 Do not recompose the Codex launch command by hand; runtime may add detected
 feature flags such as `--enable prevent_idle_sleep`, and `command.json` is the
 source of truth.
+After launch, verify the exact ProfessionalAgent pane identity before task-file
+registration or delivery: the pane id must still be the one returned by the
+targeted split, it must be in the current dedicated orchestra session,
+`pane_current_command` must be a Codex CLI process such as `node` or `codex`,
+and `pane_current_path` must match `command.json` `cwd` or the prepared
+ProfessionalAgent workspace. A pane still running `zsh`, `bash`, `fish`, or
+another shell in the MainAgent workspace is a failed ProfessionalAgent launch,
+even if `state.json` says `ready`. Do not send assignments, recovery prompts,
+`echo launch-test`, `paste-test`, or any other probe text to such a pane. Record
+a launch-routing `[Candidates]` item with expected cwd, actual command/path,
+pane id, session name, and capture evidence, then relaunch or block; do not
+continue launching more Agents from an unverified pane set.
 
 Before pane management, task delivery, follow-up, Team review facilitation, or
 retirement, use the `agent-orchestra-tmux-main` Skill. Before direct pane
@@ -122,6 +141,21 @@ ProfessionalAgent assignment is a blocking delivery defect, not a warning. Do
 not mark that ProfessionalAgent as working, do not rely on its future review,
 and do not continue launching additional Agents until you either confirm
 delivery, relaunch/retry safely, or record the work as blocked with evidence.
+If the helper returns non-zero but a later bounded capture proves the scoped
+assignment was accepted and the pane is actually Working on that assignment,
+update the ProfessionalAgent `state.json` to `working`, keep an unresolved
+`[Candidates]` delivery-defect item with the helper result and recovery
+evidence, and continue supervising that Agent. Do not leave state as `ready`
+while the pane is visibly Working on accepted assigned work. If a
+final ProfessionalAgent report or review request is accepted only after
+multiple submit attempts, record the result-json retry count as `[Gates]` or
+`[Candidates]` evidence, including any `zero_issue_blocker` flag, and keep the
+run non-zero until the degraded-delivery disposition is resolved. Do not treat a
+three-attempt final report delivery as clean zero-issue evidence.
+If a ProfessionalAgent remains visibly Working with no new output beyond the
+assignment's bounded supervision window, capture it, interrupt or recover it
+through the tmux Skills, mark the work blocked/deferred or relaunch it with
+evidence, and keep `[status] progress`; do not wait indefinitely.
 If inherited MCP startup warnings, Codex update notices, or other launch-time
 TUI banners prevent a ProfessionalAgent from accepting its scoped task, first
 use the bounded delivery helper recovery path and inspect the pane. Record the
@@ -168,6 +202,36 @@ or a narrower reproducible harness that still verifies the requirement. Keep
 `blocked` only after recording the attempted routes, the evidence, and the exact
 external credential, approval, network access, service, hardware, or scope change
 needed from the user.
+Routine work inside the active editable surface is not `needs_user`. Continue
+through ordinary in-scope file edits, tests, dependency installation into
+ephemeral/cache dirs, dev-server or Docker compose startup, pane recovery,
+bounded tool approval retries, and verification retries when they fit the
+active user permission and project policy. If host Codex approval UI appears
+for low-risk in-scope work, complete the approved route with the available
+permission mechanism, choose an equivalent autonomous route, or record a
+fixable AgentOrchestra candidate and keep `[status] progress`. Do not reject
+that candidate solely because the current Codex build lacks a blanket
+auto-approval feature. Use `needs_user` only for concrete external action the
+AgentTeam cannot perform or safely infer, such as credentials,
+account/provider setup, payment, physical device interaction,
+production/public release approval, destructive or irreversible action,
+legal/security judgment, or explicit scope expansion.
+Low-risk local browser, simulator, iOS, mobile, and production-like local E2E
+reruns are autonomous verification when scoped to the project/run and required
+by active gates. Run-scoped helper process cleanup is autonomous only with
+known process identity plus current-run or recorded-port ownership, and Docker
+cleanup is autonomous only when compose project or resource name proves
+current-run scope. CAO or operator approval used merely to pass these actions
+is an AgentOrchestra autonomy defect, not zero-issue evidence.
+During SelfE2E, CAO approval for low-risk copy-local edits is not a clean
+success path. Record the exact approval prompt as autonomy-blocker gate or
+candidate evidence and keep `.tmp/self-improvement-e2e/status` as `progress`
+unless a later regression run proves the route no longer needs CAO approval.
+Generated self-improvement copies that contain
+`.tmp/self-improvement-e2e/status` should launch MainAgent and
+ProfessionalAgents with Codex `--ask-for-approval never` while retaining
+`--sandbox workspace-write`; normal non-SelfE2E targets keep
+`--ask-for-approval on-request`.
 
 When assigning or running verification, use the repository-standard commands:
 `python3 -m unittest discover -s tests`, `python3 -m py_compile` for runtime
@@ -182,7 +246,12 @@ bounded timeout and record timeout, cancellation, or skipped status in
 build that is still silent after an equivalent `nix flake check --no-build`,
 package build, or generated-copy contract check has passed should be stopped,
 dispositioned as skipped/deferred with evidence, and must not block
-zero-issue finalization by itself.
+zero-issue finalization by itself. If the Codex TUI reports a background
+terminal still running after the declared timeout but process inspection or
+subsequent capture cannot find useful live progress, treat it as a phantom or
+stuck background-terminal candidate, preserve the evidence, cancel/interrupt
+boundedly, and continue with equivalent scoped verification instead of waiting
+for it indefinitely.
 If the run includes UI requirements or UI changes, create a `[Gates]` visual or
 E2E entry, start the app environment, and save screenshots plus
 console/network evidence at the viewports or environments required by the user,
@@ -249,16 +318,39 @@ is a read-only zsh parameter.
 Use `AGENT_ORCHESTRA_TMUX_PANE` as your own pane id. Do not overwrite your own
 Agent state pane with bare `tmux display-message` output; that command can
 report the active user pane instead of your Codex pane.
+If a tool execution environment does not expose `AGENT_ORCHESTRA_TMUX_PANE`,
+read your Agent state `tmux_target` instead of using the active client pane.
 
 If the user explicitly says to leave the orchestra with `/exit` after
 completion, treat that as part of the completion contract. Do not invent ad hoc
 delayed or background shell self-exit jobs; they can fail under sandbox or
-shell job-control rules. Use the bounded detached Python self-exit procedure
-documented by the `agent-orchestra-tmux-main` Skill as the final tool action,
-or report the explicit self-exit failure instead of claiming you exited.
+shell job-control rules, and delayed retries can leak `/exit` into the shell
+after Codex has already closed. Use the packaged
+`agent_orchestra_minimal.self_exit` procedure documented by the
+`agent-orchestra-tmux-main` Skill as the final tool action; it must resolve the
+pane from `AGENT_ORCHESTRA_TMUX_PANE` or Agent state `tmux_target`, must only
+send keys while `pane_current_command` is still a Codex CLI command such as
+`node` or `codex`, must write JSON evidence, must clear visible `/exit`
+leftovers if the pane remains open, and may use
+`kill-pane` cleanup after bounded `/exit` attempts. Report the explicit
+self-exit failure instead of claiming you exited if the helper evidence says
+`closed: false`.
+For SelfE2E only, pass
+`--allow-shell-cleanup-session-prefix AgentOrchestra-self-e2e-` and
+`--cleanup-auxiliary-shells` for the recorded dedicated SelfE2E worker pane so
+the helper may kill a post-Codex shell and same-session auxiliary shell panes in
+that dedicated session, with cleaned panes recorded as `auxiliary_shell_panes`
+and the final dedicated session disappearance recorded as `session_gone: true`
+in self-exit evidence. Do not pass them for CAO, ToO, service-E2E controller,
+observer, or ambiguous panes. Do not call `agent_orchestra_minimal.self_exit`
+directly with a copied-runtime SelfE2E
+`${AGENT_ORCHESTRA_EDIT_ROOT}/.tmp/self-improvement-e2e/main-self-exit*.json`
+result path; that CLI path is rejected so the packaged finalizer cannot be
+skipped.
 Do not mark the persistent goal complete, send a normal final report, or wait
 at the prompt as a substitute for `/exit`; if `/exit` was requested, the
-MainAgent pane actually closing is part of the evidence.
+MainAgent pane actually closing is part of the evidence. That closure must be
+clean, without shell prompt input leftovers.
 
 Before stopping, marking a goal `blocked`, or reporting completion, audit the
 shared task file, peer review evidence, unresolved blocking objections,
@@ -273,6 +365,28 @@ write `[status] done` after open sections are empty, every `[Acceptance]` item
 is satisfied, out-of-scope, or deferred with evidence, every `[Gates]` item is
 passed or explicitly non-applicable with evidence, every `[Candidates]` item has
 a completed disposition, and no unresolved Team blocking objection remains.
+If the user also supplied an external progress/done status file, write it only
+after the shared task file is final, then read it back and record the exact
+path plus observed `done` value before claiming completion or attempting
+self-exit. A narrative claim that the external status file was updated is not
+evidence; read-back mismatch keeps `[status] progress`.
+For SelfE2E, status `done` also requires reading the actual copied-runtime
+`main-self-exit*.json` beside
+`${AGENT_ORCHESTRA_EDIT_ROOT}/.tmp/self-improvement-e2e/status`; expected
+evidence text in the task file is not sufficient.
+Use `python3 -m agent_orchestra_minimal.self_e2e_finalizer` for SelfE2E final
+self-exit when the copied-runtime status file must become `done` after current
+session exit evidence exists. Pass `--status-path`,
+`--task-file "${AGENT_ORCHESTRA_TASK_FILE}"`, and `--result-path`; the detached
+helper records `active-main-session.json`, writes `main-self-exit*.json`, and
+then finalizes the copied-runtime status file from the finalized shared task
+readback. Do not rely on a separate post-exit wake to flip the copied status to
+`done`.
+It also requires
+`${AGENT_ORCHESTRA_EDIT_ROOT}/.tmp/self-improvement-e2e/active-main-session.json`
+with the recorded active MainAgent `pane` and `session_name`. The final
+`main-self-exit*.json` must match both fields exactly; JSON from a separate
+proof/final session is not valid current-run evidence.
 `blocked` and `needs_user` explain why the run cannot complete yet; keep
 `[status] progress` for those ledgers and report the exact external action
 needed. Do not leave

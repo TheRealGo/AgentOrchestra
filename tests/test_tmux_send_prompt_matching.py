@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / ".codex"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent_orchestra_minimal.tmux_send import send_text  # noqa: E402
-from tmux_send_helpers import FakeTmuxSend  # noqa: E402
+from tmux_send_helpers import FakeTmuxSend, submit_key_calls  # noqa: E402
 
 
 class TmuxSendPromptMatchingTests(unittest.TestCase):
@@ -22,13 +22,15 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
             captures=[
                 "› MainAgent: You are pro-runtime.   Please inspect SPEC.md and\n"
                 "  AgentOrchestra code for launch and tmux delivery risks.\n",
+                "› MainAgent: You are pro-runtime.   Please inspect SPEC.md and\n"
+                "  AgentOrchestra code for launch and tmux delivery risks.\n",
                 "› MainAgent: You are pro-runtime. Please inspect SPEC.md and\n\n• Working\n",
             ]
         )
 
         result = send_text("%8", message, runner=fake)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
         self.assertEqual(len(send_key_calls), 3)
@@ -59,7 +61,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
 
         result = send_text("%8", message, runner=fake, max_retries=0, poll_interval_seconds=0)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(send_key_calls), 2)
@@ -76,7 +78,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
 
         result = send_text("%8", message, runner=fake, poll_interval_seconds=0)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 3)
         self.assertEqual(len(send_key_calls), 4)
@@ -84,6 +86,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
     def test_send_text_retries_when_message_visible_without_agent_activity(self) -> None:
         fake = FakeTmuxSend(
             captures=[
+                "MainAgent: please review the final change set\n",
                 "MainAgent: please review the final change set\n",
                 "› MainAgent: please review the final change set\n\n• Working\n",
             ]
@@ -96,7 +99,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
             poll_interval_seconds=0,
         )
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
         self.assertEqual(len(send_key_calls), 3)
@@ -111,7 +114,7 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
 
         result = send_text("%8", message, runner=fake, poll_interval_seconds=0)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(send_key_calls), 2)
@@ -134,6 +137,24 @@ class TmuxSendPromptMatchingTests(unittest.TestCase):
         result = send_text("%8", message, runner=fake, max_retries=0, poll_interval_seconds=0)
 
         self.assertTrue(result.accepted)
+        self.assertEqual(result.attempts, 1)
+
+    def test_send_text_rejects_new_activity_without_fresh_message_probe(self) -> None:
+        message = "MainAgent: please provide your final scoped report now"
+        fake = FakeTmuxSend(
+            captures=[
+                (
+                    "• Edited tasks.ini (+2 -2)\n"
+                    "• Ran python3 -m unittest discover -s tests\n"
+                    "› Implement {feature}\n"
+                )
+            ],
+            baseline_capture="› Implement {feature}\n",
+        )
+
+        result = send_text("%8", message, runner=fake, max_retries=0, poll_interval_seconds=0)
+
+        self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 1)
 
     def test_send_text_does_not_accept_start_marker_words_inside_queued_message(self) -> None:

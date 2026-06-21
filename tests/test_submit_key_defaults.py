@@ -16,24 +16,36 @@ sys.path.insert(0, str(ROOT / ".codex"))
 from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
 from agent_orchestra_minimal.launch_material import prepare_launch_material  # noqa: E402
 from agent_orchestra_minimal.tmux_send import send_text  # noqa: E402
-from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, run_stop_hook  # noqa: E402
+from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, WAKE_PAYLOAD, run_stop_hook  # noqa: E402
+
+
+WAKE_PROMPT = " ".join(WAKE_PAYLOAD.split())
 
 
 class FakeTmux:
     def __init__(self) -> None:
         self.calls: list[tuple[list[str], str | None]] = []
         self.capture_count = 0
+        self.composer_cleared = False
+        self.paste_seen = False
 
     def __call__(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         self.calls.append((args, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
         stdout = ""
+        if args[:2] == ["tmux", "send-keys"] and args[-2:] == ["Escape", "C-u"]:
+            self.composer_cleared = True
+        if args[:2] == ["tmux", "paste-buffer"]:
+            self.paste_seen = True
+        if len(args) >= 6 and args[:3] == ["tmux", "send-keys", "-t"] and "-l" in args:
+            self.paste_seen = True
         if args[:2] == ["tmux", "capture-pane"]:
             self.capture_count += 1
-            stdout = (
-                "› Implement {feature}\n"
-                if self.capture_count == 1
-                else "› runtime_wake\n\n• Working\n"
-            )
+            if self.capture_count == 1:
+                stdout = "› Implement {feature}\n"
+            elif self.composer_cleared and not self.paste_seen:
+                stdout = "› \n"
+            else:
+                stdout = f"› {WAKE_PROMPT}\n\n• Working\n"
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
 
 
@@ -77,7 +89,7 @@ class SubmitKeyDefaultTests(unittest.TestCase):
 
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_launch_material_rejects_invalid_tui_submit_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

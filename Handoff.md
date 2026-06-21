@@ -51,6 +51,92 @@
 
 ## Current Verification
 
+- Latest generated-copy checks after the 2026-06-19 MainAgent self-exit
+  command-boundary guard:
+  - 2026-06-19 Layer16 runtime review found that the packaged MainAgent
+    self-exit helper only submitted `/exit` while `pane_current_command` was
+    exactly `node`. That preserved safety for npm-based Codex CLI installs but
+    could reject native Codex CLI panes reporting `codex`, leaving a
+    user-requested self-exit requirement unresolved before bounded `/exit`
+    attempts began.
+  - SPEC sections: MainAgent Lifecycle And Self-Exit; Completion Criteria;
+    Release Evidence And SPEC Traceability.
+  - owner_dri/reviewers: `pro-runtime-16` owned the runtime guard. A bounded
+    consultation to `pro-qa-15` was attempted but not accepted while that pane
+    was busy; consultation to `pro-env-22` was accepted through
+    `agent_orchestra_minimal.tmux_send` for completion/environment review.
+  - affected scope: `.codex/agent_orchestra_minimal/self_exit.py`,
+    `tests/test_self_exit.py`, `SPEC.md`,
+    `.codex/agent_orchestra_minimal/agent_templates/main.AGENTS.md`,
+    `.codex/skills/agent-orchestra-tmux-main/SKILL.md`,
+    `tests/test_skill_boundary_contract.py`, and `Handoff.md`.
+  - required checks after the patch: `python3 -m unittest tests.test_self_exit
+    tests.test_skill_boundary_contract tests.test_spec_contract` passed;
+    `python3 -m py_compile .codex/agent_orchestra_minimal/self_exit.py
+    tests/test_self_exit.py tests/test_skill_boundary_contract.py
+    tests/test_spec_contract.py` passed.
+  - candidate-ledger disposition: integrated for the native Codex CLI
+    self-exit command-boundary candidate; evidence: this handoff entry,
+    `.codex/agent_orchestra_minimal/self_exit.py`, and
+    `tests/test_self_exit.py`.
+  - deterministic finalization blockers: none known for this scoped runtime
+    guard after targeted verification; full run status remains `progress`
+    until the AgentTeam finishes the broader self-improvement E2E sweep.
+  - blocking objections: none known at the time this evidence was recorded.
+- Latest generated-copy checks after the 2026-06-19 self-improvement E2E
+  integration sweep:
+  - 2026-06-19 MainAgent continued the user-requested self-improvement E2E
+    against the generated copy at
+    `${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra`; the parent
+    `AgentOrchestra-dev` repo was kept outside the edit scope.
+  - SPEC sections: tmux Communication; MainAgent tmux Authority; Shared Task
+    File; Environment cleanup; Release Evidence And SPEC Traceability;
+    Completion Criteria.
+  - owner_dri/reviewers: MainAgent owned final integration and verification;
+    `pro-runtime-16`, `pro-qa-15`, and `pro-env-22` were launched for runtime,
+    QA/completion, and environment autonomy review. Initial delivery was
+    accepted for all three panes, with degraded delivery observed for
+    `pro-qa-15` and `pro-env-22`.
+  - affected scope: `.codex/agent_orchestra_minimal/tmux_send.py`,
+    `.codex/agent_orchestra_minimal/doctor.py`,
+    `.codex/agent_orchestra_minimal/doctor_codex.py`,
+    `.codex/agent_orchestra_minimal/launch_io.py`,
+    `.codex/agent_orchestra_minimal/self_exit.py`,
+    `.codex/agent_orchestra_minimal/server_process_runtime.py`,
+    `.codex/skills/agent-orchestra-self-improvement-e2e/SKILL.md`,
+    `.codex/skills/agent-orchestra-tmux-common/SKILL.md`,
+    `.codex/skills/agent-orchestra-tmux-main/SKILL.md`, `SPEC.md`, and tests.
+  - implemented candidates: tmux delivery `--result-json` evidence for retry
+    counts and degraded delivery; `server_process` owner/cleanup manifest
+    evidence with quoted cleanup commands; `doctor --server-processes` live
+    helper owner/cleanup reporting; `self_exit` support for Codex panes whose
+    `pane_current_command` is `codex`; copied self-improvement prompts must use
+    `.tmp/self-improvement-e2e/status`; `Something went wrong` Codex TUI
+    screens are treated as interrupted-recovery targets; `doctor_codex.py`
+    split and installed runtime manifest coverage.
+  - required checks after the patch: `python3 -m unittest discover -s tests`
+    passed, 378 tests; `find .codex/agent_orchestra_minimal .codex/hooks tests
+    -name '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
+    --check` passed; `python3 .codex/agent_orchestra_minimal/cli.py doctor
+    --target-project . --mcp` passed with Playwright MCP present; `nix flake
+    check --no-build path:.` passed; `nix build
+    path:.#checks.aarch64-darwin.source-contract --no-link` passed.
+  - observed E2E issues: `pro-qa-15` initial assignment required 2 submit
+    attempts and `pro-env-22` required 3; recovery follow-up to
+    `pro-runtime-16` and `pro-env-22` after Codex TUI "Something went wrong"
+    screens was not accepted before the recovery-pattern fix. These are
+    recorded as E2E operational evidence; the implemented `--result-json` path
+    gives future runs durable evidence for the same class of degraded delivery.
+  - candidate-ledger disposition: integrated for the tmux delivery result-json
+    evidence candidate, server-process owner/cleanup evidence candidate,
+    self-exit codex-command candidate, self-improvement status-path candidate,
+    interrupted-recovery screen candidate, and doctor split/install manifest
+    candidate.
+  - deterministic finalization blockers after this scoped sweep: none known
+    after full verification, MCP diagnostics, and source-contract build.
+  - blocking objections: none known from accepted review evidence; two
+    ProfessionalAgent panes hit Codex TUI recovery failures and their partial
+    findings were accepted only where backed by MainAgent verification.
 - Latest AgentTeam sweep after the 2026-06-08 live SPEC mirror verification pass:
   - 2026-06-08 MainAgent coordinated a live AgentTeam sweep for the user goal
     to read `SPEC.md` and improve `AgentOrchestra/` until no in-scope
@@ -362,7 +448,7 @@
     tests; `find .codex/agent_orchestra_minimal .codex/hooks tests -name
     '*.py' -print0 | xargs -0 python3 -m py_compile` passed; `git diff
     --check -- AgentOrchestra` passed from the parent repo; `nix flake check
-    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra --no-build`
+    path:${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra --no-build`
     passed.
   - candidate-ledger disposition: integrated for the prevent-idle-sleep
     release-evidence freshness candidate; evidence: this handoff entry,
@@ -434,7 +520,7 @@
     AgentOrchestra` passed from the parent repo; direct `nix flake check
     --no-build` inside `AgentOrchestra/` failed because the parent Git
     worktree does not track `AgentOrchestra/flake.nix`; path-form `nix flake
-    check path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra
+    check path:${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra
     --no-build` passed.
   - required checks after integrating the scoped improvements: `python3 -m
     unittest tests.test_tmux_send tests.test_tmux_send_edge_cases` passed, 28
@@ -442,9 +528,9 @@
     tests; `python3 -m unittest discover -s tests` passed, 245 tests;
     `python3 -m py_compile $(find .codex -name '*.py' -type f | sort)`
     passed; `git diff --check -- AgentOrchestra` passed; path-form `nix flake
-    check path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra
+    check path:${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra
     --no-build` passed; path-form `nix build
-    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra#checks.$(nix
+    path:${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra#checks.$(nix
     eval --raw --impure --expr builtins.currentSystem).source-contract
     --no-link` passed.
   - candidate-ledger disposition: integrated for the SPEC alignment evidence
@@ -508,7 +594,7 @@
     unittest discover -s tests` passed, 243 tests; `python3 -m py_compile
     .codex/agent_orchestra_minimal/*.py .codex/hooks/*.py tests/*.py` passed;
     `git diff --check -- AgentOrchestra` passed; `nix flake check
-    path:/Users/therealgo/Codex/AgentOrchestra-dev/AgentOrchestra` passed
+    path:${AGENT_ORCHESTRA_DEV_ROOT}/AgentOrchestra` passed
     `checks.aarch64-darwin.source-contract`.
   - candidate-ledger disposition: integrated for the QA/release evidence drift
     candidate and the release-skill launch-material install candidate;
@@ -869,7 +955,7 @@
   - required checks: `python3 -m unittest discover -s tests` passed, 187 tests;
     `PYTHONPYCACHEPREFIX=/private/tmp/agent-orchestra-pycache-main python3 -m
     py_compile $(find .codex/agent_orchestra_minimal .codex/hooks tests -name
-    '*.py')` passed; `git -C /Users/therealgo/Codex/INSTRUCTIONS diff --check
+    '*.py')` passed; `git -C ${AGENT_ORCHESTRA_LEGACY_ROOT} diff --check
     -- AgentOrchestra` passed; path-form Nix `nix build
     path:$PWD#checks.$(nix eval --raw --impure --expr
     builtins.currentSystem).source-contract` passed.

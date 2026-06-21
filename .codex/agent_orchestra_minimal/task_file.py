@@ -21,6 +21,7 @@ ALLOWED_STATUS = frozenset({"progress", "done"})
 RESOLVED_ACCEPTANCE_STATUS = frozenset({"satisfied", "out-of-scope", "deferred"})
 RESOLVED_GATE_STATUS = frozenset({"passed", "not-applicable"})
 GATE_KINDS = frozenset({"visual", "mcp", "env", "test", "e2e"})
+PLACEHOLDER_EVIDENCE_VALUES = frozenset({"pending", "tbd", "todo", "unknown"})
 VISUAL_GATE_EVIDENCE_KEYS = (
     "url",
     "viewport",
@@ -234,6 +235,7 @@ def _unresolved_ledger_items(
             not _ledger_has_id(item)
             or candidate_has_duplicate_fields(item)
             or any(not fields.get(field, "").strip() for field in required_fields)
+            or _has_placeholder_evidence(fields)
             or fields.get("status", "") not in resolved_statuses
             or (allowed_kinds is not None and fields.get("kind", "") not in allowed_kinds)
             or _visual_gate_evidence_is_incomplete(fields)
@@ -266,16 +268,16 @@ def _duplicate_ledger_id_items(items: list[str]) -> list[str]:
     return duplicates
 
 
+def _has_placeholder_evidence(fields: dict[str, str]) -> bool:
+    evidence = fields.get("evidence", "").strip().casefold()
+    return evidence in PLACEHOLDER_EVIDENCE_VALUES
+
+
 def _visual_gate_evidence_is_incomplete(fields: dict[str, str]) -> bool:
     if fields.get("status") != "passed" or fields.get("kind") != "visual":
         return False
     evidence = fields.get("evidence", "")
     folded_evidence = evidence.casefold()
-    combined = " ".join(
-        value
-        for key, value in fields.items()
-        if key in {"evidence", *VISUAL_GATE_EVIDENCE_KEYS}
-    ).casefold()
     if any(not (fields.get(key, "").strip() or f"{key}=" in folded_evidence) for key in VISUAL_GATE_EVIDENCE_KEYS):
         return True
     requested = fields.get("viewport", "").strip() or _evidence_value(evidence, "viewport")

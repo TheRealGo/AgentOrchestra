@@ -54,6 +54,16 @@ flag, so the pane chdir's into the isolated workspace (`cd
 carries the generated `settings.json` (the Stop Hook and permission mode) that
 serves as the launch profile. Missing prebuilt `command.json` is not a reason to replace
 an independent ProfessionalAgent with a Claude Code subagent.
+After launch, verify the exact ProfessionalAgent pane identity before task-file
+registration or delivery: the pane id must still be the one returned by the
+targeted split, it must be in the current dedicated orchestra session,
+`pane_current_command` must be the Claude Code process, and `pane_current_path`
+must match `command.json` `cwd` or the prepared ProfessionalAgent workspace. A
+pane still running `zsh`, `bash`, `fish`, or another shell in the MainAgent
+workspace is a failed ProfessionalAgent launch, even if `state.json` says
+`ready`. Do not send assignments, recovery prompts, `echo launch-test`,
+`paste-test`, or any other probe text to such a pane; record launch-routing
+evidence and relaunch or block.
 
 Before pane management, task delivery, follow-up, Team review facilitation, or
 retirement, use the `agent-orchestra-tmux-main` Skill. Before direct pane

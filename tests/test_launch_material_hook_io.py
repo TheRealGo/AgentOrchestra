@@ -24,12 +24,16 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
             fake_tmux = fake_bin / "tmux"
             fake_tmux.write_text(
                 "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' \"$*\" >> \"$AO_TMUX_CALLS\"\n"
+                "case \"$*\" in *'send-keys -t %7 Escape C-u'*) printf cleared > \"$AO_COMPOSER_CLEARED\";; esac\n"
+                "case \"$*\" in *paste-buffer*) printf pasted > \"$AO_PASTE_SEEN\";; esac\n"
+                "case \"$*\" in *'send-keys -t %7 -l'*) printf pasted > \"$AO_PASTE_SEEN\";; esac\n"
                 "case \"$*\" in *capture-pane*)\n"
                 "  count=$(cat \"$AO_CAPTURE_COUNT\" 2>/dev/null || printf 0)\n"
                 "  count=$((count + 1))\n"
                 "  printf '%s\\n' \"$count\" > \"$AO_CAPTURE_COUNT\"\n"
                 "  if [ \"$count\" -eq 1 ]; then printf '› Implement {feature}\\n';\n"
-                "  else printf '› runtime_wake\\n\\n• Working\\n'; fi\n"
+                "  elif [ -f \"$AO_COMPOSER_CLEARED\" ] && [ ! -f \"$AO_PASTE_SEEN\" ]; then printf '› \\n';\n"
+                "  else printf '› runtime_wake source=hook user_instruction=false resync=startup_agents_role_contract_team_skill_task_state action=resume_existing_work_after_resync\\n\\n• Working\\n'; fi\n"
                 "  ;;\n"
                 "esac\n"
                 "exit 0\n",
@@ -52,6 +56,8 @@ class LaunchMaterialHookIOTests(unittest.TestCase):
             )
             env = os.environ | material.env | {
                 "AO_CAPTURE_COUNT": str(tmp / "capture_count.txt"),
+                "AO_COMPOSER_CLEARED": str(tmp / "composer_cleared"),
+                "AO_PASTE_SEEN": str(tmp / "paste_seen"),
                 "AO_TMUX_CALLS": str(calls),
                 "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
             }

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".codex"))
 
 from agent_orchestra_minimal.task_file import DEFAULT_TASK_FILE  # noqa: E402
-from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, WAKE_PAYLOAD, run_stop_hook  # noqa: E402
+from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY, run_stop_hook  # noqa: E402
 from stop_hook_helpers import FakeTmux, RunFiles  # noqa: E402
 
 
@@ -59,7 +59,19 @@ class StopHookInvalidTaskFileTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "invalid_task_file_or_unreadable_main_fallback")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
+
+    def test_finalized_task_file_with_missing_professional_state_wakes_main_for_repair(self) -> None:
+        with self.run_files(agent_kind="MainAgent", state="working") as env:
+            task_file = Path(env["AGENT_ORCHESTRA_TASK_FILE"])
+            (task_file.parent / "agents" / "pa-runtime").mkdir(parents=True)
+            fake = FakeTmux()
+            decision = run_stop_hook(env, runner=fake)
+
+        self.assertIsNotNone(decision)
+        self.assertTrue(decision.should_wake)
+        self.assertEqual(decision.reason, "main_done_with_unretired_professional_agents")
+        self.assertWakeSent(fake)
 
     def test_invalid_task_file_wakes_main_agent_for_repair(self) -> None:
         with self.run_files(
@@ -99,20 +111,12 @@ class StopHookInvalidTaskFileTests(unittest.TestCase):
         return RunFiles(agent_kind=agent_kind, state=state, task_text=task_text or DEFAULT_TASK_FILE)
 
     def assertWakeSent(self, fake: FakeTmux) -> None:
-        wake_buffer = self.wakeBuffer(fake)
-        self.assertEqual(len(fake.calls), 6)
-        self.assertEqual(
-            fake.calls[0],
-            (["tmux", "load-buffer", "-b", wake_buffer, "-"], WAKE_PAYLOAD),
-        )
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
-        self.assertEqual(fake.calls[-1], (["tmux", "delete-buffer", "-b", wake_buffer], None))
-
-    def wakeBuffer(self, fake: FakeTmux) -> str:
-        self.assertGreaterEqual(len(fake.calls), 1)
-        args = fake.calls[0][0]
-        self.assertEqual(args[:3], ["tmux", "load-buffer", "-b"])
-        return args[3]
+        load_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "load-buffer"]]
+        self.assertEqual(len(load_calls), 1)
+        self.assertIn("runtime_wake", load_calls[0][1] or "")
+        self.assertIn((["tmux", "paste-buffer", "-t", "%7", "-b", "agent-orchestra-wake-7"], None), fake.calls)
+        self.assertIn((["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None), fake.calls)
+        self.assertIn((["tmux", "delete-buffer", "-b", "agent-orchestra-wake-7"], None), fake.calls)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,25 @@ Keep `[status] progress` while any autonomous completion route remains. Use
 external input. In that case, record the attempted routes, artifact paths, and
 the exact missing credential, approval, network access, service, hardware, or
 scope change needed from the user.
+Routine in-scope environment work is not `needs_user`: dependency installation
+into launch-provided cache/env dirs, dev-server restarts, Docker compose for the
+current run, browser/tool retries with bounded timeouts, pane recovery, and
+ordinary verification retries should continue when allowed by the active user
+permission and project policy. If host Codex approval UI appears for such
+low-risk work, make the bounded approved attempt when permitted, choose an
+equivalent autonomous route, or record a fixable AgentOrchestra candidate and
+keep the requirement/gate unresolved. Reserve `needs_user` for credentials,
+account/provider setup, payment, physical device interaction, production/public
+release approval, destructive or irreversible action, legal/security judgment,
+or explicit scope expansion.
+Low-risk local E2E reruns are part of this autonomous environment work when
+they satisfy active gates and are scoped to the project/run. Browser matrix
+reruns, local simulator or iOS smoke reruns, mobile route evidence, mobile
+interactive evidence, and local production-like browser checks should be run
+with bounded timeouts and artifact evidence. If CAO or another operator had to
+approve such a rerun just to keep the E2E moving, record it as an
+AgentOrchestra autonomy defect and keep the run non-zero until a runtime,
+Skill, or launch-material fix is verified.
 
 Long-running setup and verification commands must be bounded. For Nix builds,
 Docker pulls, dependency installs, browser installs, or network-backed fetches,
@@ -148,6 +167,10 @@ If `AGENT_ORCHESTRA_RUN_ID` is unavailable, derive a short stable value from
 `AGENT_ORCHESTRA_RUN_DIR`. Before reporting completion, stop and remove compose
 resources that are no longer needed, and store logs or inspection output in
 `AGENT_ORCHESTRA_ARTIFACT_DIR` if they are evidence.
+Only remove compose containers, networks, and volumes when the compose project
+or resource name proves current-run ownership. Ambiguous or non-run-scoped
+Docker resources remain blocked or `needs_user` with evidence; they are not
+cleaned to make the host look tidy.
 
 ## Dev Servers And Runtime Processes
 
@@ -238,6 +261,10 @@ completion inspect remaining listeners for the ports you attempted. A listener
 from a deleted or previous run is an orphan-process candidate; clean it through
 the old manifest when available, or record the exact PID/PGID and request or
 perform an approved external cleanup route.
+Direct helper-process cleanup is autonomous only when both process identity and
+current-run or recorded-port ownership are known. If either identity or
+ownership is ambiguous, leave the cleanup gate blocked or `needs_user` with the
+captured PID/port/manifest evidence instead of sending an unscoped kill.
 Use `agent-orchestra doctor --server-processes` to scan durable
 `server_process` manifests under the configured AgentOrchestra run root when a
 run reports cleanup success but ports, PIDs, or helper processes still appear live.

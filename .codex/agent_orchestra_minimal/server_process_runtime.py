@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -31,11 +32,14 @@ def entry(
         "pid": pid,
         "pgid": pgid,
         "supervisor_pid": pid,
+        "owner_agent_id": os.environ.get("AGENT_ORCHESTRA_AGENT_ID", ""),
+        "owner_tmux_pane": os.environ.get("AGENT_ORCHESTRA_TMUX_PANE", ""),
         "cwd": str(cwd),
         "base_url": args.base_url,
         "port": args.port,
         "log_path": str(log_path),
         "stop_file": str(stop_file) if stop_file is not None else "",
+        "cleanup_command": _cleanup_command(args),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "command_preview": command_preview(cmd),
         "status": status,
@@ -45,6 +49,13 @@ def entry(
         result["health_url"] = health_url
         result["health_contains"] = getattr(args, "health_contains", None)
     return result
+
+
+def _cleanup_command(args: argparse.Namespace) -> str:
+    return (
+        f"{shlex.quote(sys.executable)} -m agent_orchestra_minimal.server_process stop "
+        f"--manifest {shlex.quote(str(args.manifest))} --name {shlex.quote(str(args.name))}"
+    )
 
 
 def startup_failure_entry(

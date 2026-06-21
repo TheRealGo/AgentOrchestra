@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -57,6 +58,8 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             for skill in (
                 "agent-orchestra-launch",
                 "agent-orchestra-release",
+                "agent-orchestra-self-improvement-e2e",
+                "agent-orchestra-service-e2e-improvement",
                 "agent-orchestra-environment",
                 "agent-orchestra-task-file",
                 "agent-orchestra-team",
@@ -115,8 +118,9 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             self.assertNotIn("config_profile_v2", command)
             self.assertIn("--ask-for-approval", argv)
             approval_index = argv.index("--ask-for-approval")
-            self.assertEqual(argv[approval_index + 1], "on-request")
-            self.assertNotIn("never", argv)
+            expected_approval = "never" if (ROOT / ".tmp" / "self-improvement-e2e" / "status").is_file() else "on-request"
+            self.assertEqual(argv[approval_index + 1], expected_approval)
+            self.assertEqual(command["approval_policy"], expected_approval)
             self.assertIn("--sandbox", argv)
             self.assertIn("workspace-write", argv)
             self.assertIn("--enable", argv)
@@ -132,6 +136,37 @@ class LaunchMaterialInstallContractTests(unittest.TestCase):
             self.assertNotIn("shell_command", command)
             self.assertTrue(command["does_not_launch"])
             self.assertFalse((material.state_file.parent / "shell_command.txt").exists())
+
+    def test_launch_material_shell_env_quotes_application_support_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_parent = Path(tmpdir) / "Library" / "Application Support" / "agent-orchestra" / "runs"
+            material = prepare_launch_material(
+                run_dir=run_parent / "20260621-quoted-path",
+                agent_id="pro-quoted-path",
+                agent_kind="ProfessionalAgent",
+                target_project=ROOT,
+                instruction_text="Quoted path instruction.",
+            )
+
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-c",
+                    ". \"$1\" && printf '%s\\n%s\\n' \"$AGENT_ORCHESTRA_AGENT_DIR\" \"$AGENT_ORCHESTRA_RUN_DIR\"",
+                    "sh",
+                    str(material.env_shell_path),
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [str(material.state_file.parent), str(material.run_dir)],
+            )
 
     def test_launch_material_paths_are_private_to_the_current_user(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

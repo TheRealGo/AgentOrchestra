@@ -6,7 +6,7 @@ description: Use when releasing AgentOrchestra from the private AgentOrchestra-d
 # AgentOrchestra Release
 
 Use this Skill only for the project-local release workflow rooted at
-`/Users/therealgo/Codex/AgentOrchestra-dev`.
+`${AGENT_ORCHESTRA_DEV_ROOT}`.
 
 Repository roles:
 

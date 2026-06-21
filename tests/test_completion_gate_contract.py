@@ -133,6 +133,56 @@ class CompletionGateContractTests(unittest.TestCase):
         self.assertTrue(task_file.has_unresolved_acceptance)
         self.assertTrue(task_file.has_unresolved_gates)
 
+    def test_duplicate_acceptance_and_gate_field_keys_block_finalization(self) -> None:
+        task_file = SharedTaskFile.parse(
+            DEFAULT_TASK_FILE.replace(
+                "[Acceptance]\n\n",
+                (
+                    "[Acceptance]\n"
+                    "REQ-001: status=satisfied; status=deferred; source=user; "
+                    "owner=main; verification=tests; evidence=tests\n\n"
+                ),
+            ).replace(
+                "[Gates]\n\n",
+                (
+                    "[Gates]\n"
+                    "gate-test: status=passed; kind=test; kind=e2e; evidence=tests\n\n"
+                ),
+            )
+        )
+
+        self.assertFalse(task_file.is_finalized)
+        self.assertEqual(
+            task_file.finalization_blockers,
+            [
+                "acceptance:REQ-001: status=satisfied; status=deferred; source=user; "
+                "owner=main; verification=tests; evidence=tests",
+                "gate:gate-test: status=passed; kind=test; kind=e2e; evidence=tests",
+            ],
+        )
+
+    def test_resolved_acceptance_and_gates_require_non_placeholder_evidence(self) -> None:
+        placeholders = ("pending", "TBD", "todo", "unknown")
+
+        for evidence in placeholders:
+            with self.subTest(evidence=evidence):
+                task_file = SharedTaskFile.parse(
+                    DEFAULT_TASK_FILE.replace(
+                        "[Acceptance]\n\n",
+                        (
+                            "[Acceptance]\n"
+                            "REQ-001: status=satisfied; source=user; owner=main; "
+                            f"verification=tests; evidence={evidence}\n\n"
+                        ),
+                    ).replace(
+                        "[Gates]\n\n",
+                        f"[Gates]\ngate-test: status=passed; kind=test; evidence={evidence}\n\n",
+                    )
+                )
+
+                self.assertTrue(task_file.has_unresolved_acceptance)
+                self.assertTrue(task_file.has_unresolved_gates)
+
     def test_duplicate_acceptance_and_gate_ids_block_finalization(self) -> None:
         task_file = SharedTaskFile.parse(
             DEFAULT_TASK_FILE.replace(
@@ -165,6 +215,21 @@ class CompletionGateContractTests(unittest.TestCase):
             "gate:gate-e2e-api: status=open; kind=e2e; evidence=pending",
             task_file.finalization_blockers,
         )
+
+    def test_duplicate_sections_are_rejected_before_finalization(self) -> None:
+        with self.assertRaisesRegex(ValueError, "duplicate shared task file section 'Gates'"):
+            SharedTaskFile.parse(DEFAULT_TASK_FILE + "\n[Gates]\ngate-test: status=passed; kind=test; evidence=tests\n")
+
+    def test_malformed_gate_line_blocks_finalization(self) -> None:
+        task_file = SharedTaskFile.parse(
+            DEFAULT_TASK_FILE.replace(
+                "[Gates]\n\n",
+                "[Gates]\nmalformed-gate-without-fields\n\n",
+            )
+        )
+
+        self.assertFalse(task_file.is_finalized)
+        self.assertIn("gate:malformed-gate-without-fields", task_file.finalization_blockers)
 
     def test_passed_visual_gate_requires_structured_ui_evidence(self) -> None:
         missing_details = SharedTaskFile.parse(

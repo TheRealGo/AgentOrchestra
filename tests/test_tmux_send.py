@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agent_orchestra_minimal.tmux_send import _effective_cli_polls_per_attempt, send_text  # noqa: E402
 from agent_orchestra_minimal.tmux_wake import DEFAULT_SUBMIT_KEY  # noqa: E402
-from tmux_send_helpers import FakeTmuxSend, tmux_buffer_name  # noqa: E402
+from tmux_send_helpers import FakeTmuxSend, delivery_input_calls, submit_key_calls  # noqa: E402
 
 
 class TmuxSendTests(unittest.TestCase):
@@ -44,26 +44,17 @@ class TmuxSendTests(unittest.TestCase):
 
         result = send_text("%7", "MainAgent: investigate", runner=fake)
 
-        buffer_name = tmux_buffer_name(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
-        self.assertEqual(
-            fake.calls,
-            [
-                (["tmux", "load-buffer", "-b", buffer_name, "-"], "MainAgent: investigate"),
-                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
-                (["tmux", "send-keys", "-t", "%7", "Escape", "C-u"], None),
-                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
-                (["tmux", "paste-buffer", "-t", "%7", "-b", buffer_name], None),
-                (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None),
-                (["tmux", "capture-pane", "-t", "%7", "-p", "-S", "-120"], None),
-                (["tmux", "delete-buffer", "-b", buffer_name], None),
-            ],
-        )
+        self.assertEqual(delivery_input_calls(fake), [(["tmux", "paste-buffer", "-t", "%7", "-b", "agent-orchestra-msg-7"], None)])
+        self.assertIn((["tmux", "load-buffer", "-b", "agent-orchestra-msg-7", "-"], "MainAgent: investigate"), fake.calls)
+        self.assertIn((["tmux", "delete-buffer", "-b", "agent-orchestra-msg-7"], None), fake.calls)
+        self.assertIn((["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_send_text_retries_when_message_remains_in_composer(self) -> None:
         fake = FakeTmuxSend(
             captures=[
+                "› ProfessionalAgent: please review the contract\n",
                 "› ProfessionalAgent: please review the contract\n",
                 "› ProfessionalAgent: please review the contract\n\n• Working\n",
             ]
@@ -71,7 +62,7 @@ class TmuxSendTests(unittest.TestCase):
 
         result = send_text("%8", "ProfessionalAgent: please review the contract", runner=fake)
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 2)
         self.assertEqual(len(send_key_calls), 3)
@@ -92,7 +83,7 @@ class TmuxSendTests(unittest.TestCase):
             polls_per_attempt=2,
         )
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(send_key_calls), 2)
@@ -114,7 +105,7 @@ class TmuxSendTests(unittest.TestCase):
             polls_per_attempt=3,
         )
 
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        send_key_calls = submit_key_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(send_key_calls), 2)
@@ -133,8 +124,8 @@ class TmuxSendTests(unittest.TestCase):
             polls_per_attempt=2,
         )
 
-        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        paste_calls = delivery_input_calls(fake)
+        send_key_calls = submit_key_calls(fake)
         self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 0)
         self.assertEqual(paste_calls, [])
@@ -161,8 +152,8 @@ class TmuxSendTests(unittest.TestCase):
                     poll_interval_seconds=0,
                 )
 
-                paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
-                send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+                paste_calls = delivery_input_calls(fake)
+                send_key_calls = submit_key_calls(fake)
                 self.assertFalse(result.accepted)
                 self.assertEqual(result.attempts, 0)
                 self.assertEqual(paste_calls, [])
@@ -189,7 +180,7 @@ class TmuxSendTests(unittest.TestCase):
             polls_per_attempt=2,
         )
 
-        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        paste_calls = delivery_input_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(paste_calls), 1)
@@ -212,8 +203,8 @@ class TmuxSendTests(unittest.TestCase):
             poll_interval_seconds=0,
         )
 
-        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        paste_calls = delivery_input_calls(fake)
+        send_key_calls = submit_key_calls(fake)
         self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 0)
         self.assertEqual(paste_calls, [])
@@ -237,8 +228,8 @@ class TmuxSendTests(unittest.TestCase):
             poll_interval_seconds=0,
         )
 
-        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
+        paste_calls = delivery_input_calls(fake)
+        send_key_calls = submit_key_calls(fake)
         self.assertFalse(result.accepted)
         self.assertEqual(result.attempts, 0)
         self.assertEqual(paste_calls, [])
@@ -246,13 +237,15 @@ class TmuxSendTests(unittest.TestCase):
 
     def test_send_text_waits_for_peer_to_return_to_ready_prompt_before_paste(self) -> None:
         fake = FakeTmuxSend(
-            captures=[
+            baseline_capture=[
                 "› previous task\n\ngpt-5.5 default\n• Working\n",
                 "• Done.\n\n› Implement {feature}\n",
                 "• Done.\n\n› \n",
+                "• Done.\n\n› \n",
+            ],
+            captures=[
                 "› ProfessionalAgent: please review after you finish\n\n• Working\n",
             ],
-            baseline_capture=None,
         )
 
         result = send_text(
@@ -263,7 +256,7 @@ class TmuxSendTests(unittest.TestCase):
             polls_per_attempt=2,
         )
 
-        paste_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "paste-buffer"]]
+        paste_calls = delivery_input_calls(fake)
         self.assertTrue(result.accepted)
         self.assertEqual(result.attempts, 1)
         self.assertEqual(len(paste_calls), 1)

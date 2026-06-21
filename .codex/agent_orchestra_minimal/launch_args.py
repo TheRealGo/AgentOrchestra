@@ -22,6 +22,17 @@ CODEX_FLAGS_WITHOUT_VALUES = frozenset(
         "--no-alt-screen",
     }
 )
+CODEX_APPROVAL_POLICIES = frozenset({"on-request", "never"})
+SELF_E2E_STATUS_RELATIVE_PATH = Path(".tmp/self-improvement-e2e/status")
+SERVICE_E2E_STATUS_RELATIVE_PATH = Path(".tmp/agent-orchestra-service-e2e/status")
+SELF_E2E_EDITABLE_SUBROOTS = (
+    Path(".codex"),
+    Path(".codex/agent_orchestra_minimal"),
+    Path(".codex/skills"),
+    Path(".codex/hooks"),
+    Path(".claude"),
+    Path(".claude/agent_orchestra_minimal"),
+)
 FORBIDDEN_CODEX_ARGS = frozenset(
     {
         "--profile",
@@ -106,7 +117,11 @@ def codex_launch_argv(
     runtime_roots: Sequence[str] = (),
     extra_args: Sequence[str] = (),
     auto_enable_prevent_idle_sleep: bool | None = None,
+    approval_policy: str | None = None,
 ) -> list[str]:
+    resolved_approval_policy = approval_policy or codex_approval_policy_for_target(Path(target_project))
+    if resolved_approval_policy not in CODEX_APPROVAL_POLICIES:
+        raise ValueError(f"unsupported Codex approval policy {resolved_approval_policy!r}")
     enable_prevent_idle_sleep = (
         codex_supports_prevent_idle_sleep(codex_binary)
         if auto_enable_prevent_idle_sleep is None
@@ -117,7 +132,7 @@ def codex_launch_argv(
         "--profile",
         "agent-orchestra",
         "--ask-for-approval",
-        "on-request",
+        resolved_approval_policy,
         "--sandbox",
         "workspace-write",
         "--enable",
@@ -141,6 +156,14 @@ def codex_launch_argv(
     return argv
 
 
+def codex_approval_policy_for_target(target_project: Path) -> str:
+    if (target_project / SELF_E2E_STATUS_RELATIVE_PATH).is_file():
+        return "never"
+    if (target_project / SERVICE_E2E_STATUS_RELATIVE_PATH).is_file():
+        return "never"
+    return "on-request"
+
+
 def codex_supports_prevent_idle_sleep(codex_binary: str = "codex") -> bool:
     if os.environ.get("AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP") == "1":
         return False
@@ -155,10 +178,40 @@ def _codex_supports_prevent_idle_sleep(codex_binary: str) -> bool:
 
 def editable_access_roots(target_root: Path) -> tuple[Path, ...]:
     roots = [target_root]
+    if os.environ.get("AGENT_ORCHESTRA_INCLUDE_PARENT_GIT_ROOT") != "1":
+        return tuple(roots)
     git_root = git_worktree_root(target_root)
     if git_root and git_root != target_root:
         roots.append(git_root)
     return tuple(roots)
+
+
+def launch_access_roots(target_root: Path, editable_roots: Sequence[Path]) -> tuple[Path, ...]:
+    roots = [Path(root).expanduser().resolve() for root in editable_roots]
+    if (target_root / SELF_E2E_STATUS_RELATIVE_PATH).is_file():
+        roots.extend(selfe2e_explicit_runtime_roots(target_root))
+    return _dedupe_paths(roots)
+
+
+def selfe2e_explicit_runtime_roots(target_root: Path) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    for relative in SELF_E2E_EDITABLE_SUBROOTS:
+        candidate = target_root / relative
+        if candidate.exists():
+            roots.append(candidate.resolve())
+    return tuple(roots)
+
+
+def _dedupe_paths(paths: Sequence[Path]) -> tuple[Path, ...]:
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        resolved = Path(path).expanduser().resolve()
+        if resolved in seen:
+            continue
+        result.append(resolved)
+        seen.add(resolved)
+    return tuple(result)
 
 
 def git_worktree_root(path: Path) -> Path | None:

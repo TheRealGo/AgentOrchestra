@@ -262,6 +262,11 @@ ProfessionalAgent recommendations, failed or skipped verification gaps, E2E
 observations, and operational issues discovered during the run. MainAgent must
 not hide these as narrative-only notes when they are actionable within the
 active goal and editable surface.
+For SelfE2E completion, the finalized ledger must carry explicit evidence of
+multi-viewpoint search, ProfessionalAgent review, ServiceE2E intake/replay,
+standard verification, final candidate sweep, zero unresolved
+Acceptance/Gates/Candidates/open work, and finalizer status readback before the
+copied status file may be `done`.
 
 Missing environment, MCP, tool, dependency, browser, container, service,
 credential, or network access is not by itself a completion endpoint. Before a
@@ -273,6 +278,49 @@ checks, or a smaller reproducible harness that still verifies the acceptance
 requirement. The task file evidence must name the attempted routes and the exact
 external credential, approval, network access, service, hardware, or scope
 change required from the user when no autonomous route remains.
+Routine work inside the already granted editable surface is not `needs_user`.
+AgentOrchestra must continue through ordinary copy-local edits, tests,
+dependency setup, dev-server restarts, Docker compose use, pane recovery,
+bounded tool approval retries, and verification retries when they are within
+the active user permission and project policy. If a host Codex approval UI
+appears for such low-risk in-scope work, MainAgent must either complete the
+approved route using the available permission mechanism, choose an equivalent
+autonomous route, or record a fixable AgentOrchestra candidate and keep
+`[status] progress`; it must not close the candidate merely because the current
+Codex build lacks a blanket auto-approval feature. `needs_user` is reserved for
+external action the AgentTeam cannot perform or safely infer: credentials,
+account/provider setup, payment, physical device interaction, production or
+public release approval, destructive/irreversible action, legal/security
+judgment, or explicit scope expansion.
+Low-risk local E2E verification reruns are also autonomous when they are
+required by active gates and scoped to the project/run. This includes browser
+matrix reruns, local simulator/iOS smoke reruns, mobile route or interactive
+evidence reruns, and production-like local browser checks. CAO or operator
+approval that merely lets one of these reruns proceed is not success evidence;
+it is an AgentOrchestra autonomy defect that must be recorded and either fixed
+or kept as unresolved `[status] progress`.
+ServiceE2E approval/UserNeeded/cleanup observations must enter the
+self-improvement worker path through structured intake, not only through doctor
+output or narrative notes. The ServiceE2E observer records the defect brief and
+runs `agent-orchestra service-e2e-intake --brief-file ... --task-file
+"$AGENT_ORCHESTRA_RUN_DIR/tasks.ini"` or an equivalent copied-runtime command.
+That intake expands the observations into Backlog, Acceptance, Gates, and
+Candidates and replays the nine approval/UserNeeded/cleanup examples through
+the same autonomy and UserNeeded policy boundary used for worker decisions. If
+this path is unproven, SelfE2E remains `progress` and zero-issue completion is
+invalid.
+For generated self-improvement copies that contain
+`.tmp/self-improvement-e2e/status`, AgentOrchestra launch material uses Codex
+`--ask-for-approval never` while retaining `--sandbox workspace-write`. This
+keeps copy-local low-risk work inside the existing sandbox instead of pausing
+for CAO approval. Normal non-SelfE2E targets keep `--ask-for-approval
+on-request`.
+MainAgent must carry the user's completion profile into Acceptance and Gates.
+For a `local_two_user_production_like` service E2E, local Safari, iPhone
+Safari, direct local install, persistence, and production-compatible
+architecture evidence can be blocking while public store, legal, production
+provider, and public release evidence is deferred or out-of-scope unless the
+user explicitly changes the profile to `public_release`.
 Requirement document discovery is case-insensitive and path-aware. If a user or
 repository refers to `Spec.md`, `SPEC.md`, `spec.md`, `UI.md`, `ui.md`, README
 variants, issue files, or design docs, MainAgent must read the actual files
@@ -288,6 +336,12 @@ cache/artifact/env directories and compose resources identified by
 evidence instead of being removed.
 Unknown local artifacts are outside current-run cleanup unless the current run
 created them.
+Run-scoped cleanup may be autonomous only when ownership is proven. Helper
+process cleanup requires a known process identity plus current-run or recorded
+port ownership. Docker compose, container, network, and volume cleanup requires
+the compose project or resource name to match the current run scope. Ambiguous
+or non-run-scoped process and Docker cleanup remains blocked or `needs_user`
+with exact evidence instead of being deleted speculatively.
 
 The standard Python verification runner is `unittest`, not `pytest`.
 AgentTeam verification should use `python3 -m unittest discover -s tests`,
@@ -416,16 +470,18 @@ The runtime prepares a launch surface for each Agent before Codex starts:
 - required environment variables;
 - target project access as data through Codex CLI `--add-dir`;
 - when the requested target is inside a Git worktree whose root is outside the
-  target path, the Git worktree root is also granted through `--add-dir` and
-  exposed as the editable root so Agents can patch tracked files.
+  target path, the parent Git worktree root is not granted by default. The
+  target path is the editable root unless the operator explicitly sets
+  `AGENT_ORCHESTRA_INCLUDE_PARENT_GIT_ROOT=1` for a legacy run that must edit
+  the outer worktree.
 
 The Codex CLI launch itself should use first-class Codex options:
 
 - `--cd` points at the isolated workspace that contains the generated
   startup `AGENTS.md`;
 - `--add-dir` grants access to the target project as data/workspace material;
-- a detected parent Git worktree root is an additional editable/access root,
-  while the original target remains the user-requested scope;
+- detected parent Git worktree roots are not editable/access roots by default,
+  so generated self-improvement copies and nested targets remain isolated;
 - `--profile agent-orchestra` loads the minimal Hook/project-trust config
   from `CODEX_HOME`;
 - legacy or user-supplied profile flags such as `--profile-v2` are runtime
@@ -491,6 +547,15 @@ non-trivial work, peer consultation evidence should record sender, receiver,
 topic, question or objection, response or timeout, disposition, and evidence
 pointer. Valid dispositions include accepted, rejected, deferred,
 request-changes, and block.
+When a peer response is required but the receiver pane is still Working or
+otherwise input-not-ready, AgentOrchestra must not rely solely on one
+synchronous tmux paste. The response can be durably queued in the run-scoped
+peer mailbox and later drained after the receiver becomes input-ready. Normal
+later delivery to the same pane drains queued mailbox messages before sending a
+new message, so a ready-after-retry path does not depend on manual copy/paste.
+Queueing is preservation evidence, not accepted delivery; clean completion
+requires drain evidence showing the queued message was accepted or an explicit
+unresolved candidate/gate disposition.
 
 ## MainAgent tmux Authority
 
@@ -516,12 +581,17 @@ and use `kill-pane` when an accepted pane remains.
 
 If the user explicitly instructs MainAgent to leave the orchestra with `/exit`
 after completion, that self-exit is part of the completion contract. MainAgent
-must use the tmux Main Skill self-exit procedure as its final tool action, and
-must report an explicit self-exit failure instead of claiming exit success when
-`/exit` remains queued or the pane remains active. A normal completion report,
-persistent goal completion message, or idle prompt is not a substitute for this
-self-exit; the MainAgent pane must actually leave before the requirement is
-satisfied.
+must use the tmux Main Skill self-exit procedure as its final tool action. That
+procedure uses a packaged helper, verifies the pane is still running a Codex CLI
+command such as `node` or `codex`, writes JSON evidence, and clears visible
+`/exit` leftovers if the pane remains active. MainAgent must report an explicit
+self-exit failure instead of claiming exit success when `/exit` remains queued
+or the pane remains active. A normal completion report, persistent goal
+completion message, or idle prompt is not a substitute for this self-exit; the
+MainAgent pane must actually leave before the requirement is satisfied. The
+self-exit procedure must prefer `AGENT_ORCHESTRA_TMUX_PANE` and,
+when a tool environment does not expose it, resolve Agent state `tmux_target`
+instead of using a bare active-pane lookup.
 
 Runtime must not own ProfessionalAgent pane scheduling. Runtime only provides
 launch material that MainAgent can run inside a pane.
@@ -582,7 +652,8 @@ Allowed acceptance statuses are `open`, `satisfied`, `blocked`,
 a non-empty id, `status`, `source`, `owner`, `verification`, and `evidence`,
 and its status is `satisfied`, `out-of-scope`, or `deferred`. `open`,
 `blocked`, `needs_user`, missing required fields, duplicate field keys, or
-unknown statuses are finalization blockers.
+unknown statuses are finalization blockers. Placeholder evidence values such
+as `pending`, `TBD`, `todo`, or `unknown` are not completion evidence.
 
 `[Gates]` items trace required quality gates:
 
@@ -595,7 +666,8 @@ Allowed gate statuses are `open`, `passed`, `failed`, `blocked`,
 `env`, `test`, and `e2e`. A finalizable gate is `passed` or `not-applicable`
 with id, status, kind, and evidence. `open`, `failed`, `blocked`,
 `needs_user`, missing required fields, duplicate field keys, unknown statuses,
-or unknown kinds are finalization blockers.
+or unknown kinds are finalization blockers. Placeholder evidence values such as
+`pending`, `TBD`, `todo`, or `unknown` are not completion evidence.
 For `kind=visual`, `status=passed` is finalizable only when evidence records
 the URL, screenshot path, requested viewport, measured viewport, console errors,
 network errors, verifying Agent, artifact directory, fit assertion, server
@@ -696,6 +768,21 @@ tmux delivery is also a liveness contract. Pasting text into a target Codex TUI
 pane is not delivery. The concrete send/capture/retry procedure belongs in the
 tmux Skills, not in this SPEC. The SPEC-level invariant is that Agents must not
 silently treat unconfirmed communication as delivered.
+If a delivery helper reports failure but later bounded capture evidence proves
+the target ProfessionalAgent accepted the scoped assignment and is Working on
+it, MainAgent must update that Agent's state to `working`, keep a
+delivery-defect candidate open with the helper and recovery evidence, and
+continue supervising the Agent. A visibly Working pane with stale `ready` state
+is itself an orchestration defect. A pane that stays visibly Working without new
+output beyond a bounded supervision window must be interrupted, recovered,
+blocked, or relaunched with evidence; it must not hold the run open
+indefinitely.
+If a required final ProfessionalAgent report or review request is accepted only
+after multiple submit attempts, MainAgent must record the result-json retry
+count as `[Gates]` or `[Candidates]` evidence. A `degraded: true` or
+`zero_issue_blocker: true` delivery result prevents clean zero-issue completion
+until the degraded-delivery disposition is fixed and regression-verified or
+otherwise explicitly resolved in the task file.
 
 ### ProfessionalAgent Re-kick Conditions
 
@@ -778,6 +865,13 @@ hold the run open indefinitely after equivalent scoped evidence, such as
 `nix flake check --no-build`, a package build, or generated-copy contract
 evidence, has already passed; Agents continue finalization without waiting
 indefinitely.
+If the Codex TUI still shows a background terminal after the command's declared
+timeout, but bounded process/capture inspection cannot identify useful live
+progress, Agents record a phantom or stuck background-terminal candidate,
+cancel/interrupt boundedly, and move to equivalent scoped verification or a
+deferred gate disposition. They do not keep waiting for a terminal status line
+that no longer maps to actionable work; use equivalent scoped verification
+instead of waiting indefinitely.
 Browser and visual E2E routes require a strict outer wall-clock timeout around
 the whole install/launch/screenshot/action route. Page-level Playwright
 timeouts are insufficient because the browser process can hang before page code
@@ -975,7 +1069,9 @@ The minimal runtime is acceptable when tests and E2E evidence show:
   Skill-defined tmux delivery procedures without false-accepting queued
   composer text or interrupting a peer pane that is still working;
 - ProfessionalAgents can send messages to MainAgent or peer panes through the
-  same Skill-defined delivery procedures and record consultation evidence;
+  same Skill-defined delivery procedures, durably queue required peer responses
+  when the receiver is input-not-ready, drain those queued messages after the
+  receiver is ready, and record consultation evidence;
 - Stop Hook re-kicks MainAgent while open work remains;
 - long-run-equivalent wake/cycle repetition preserves MainAgent resync from
   generated startup `AGENTS.md`, the MainAgent Role Contract, the
@@ -984,19 +1080,42 @@ The minimal runtime is acceptable when tests and E2E evidence show:
   candidate sweep, or pane-retirement audit decisions;
 - Stop Hook does not re-kick MainAgent after `status=done`, no open work, and
   completed `[Candidates]` dispositions;
+- Stop Hook re-kicks MainAgent instead of allowing quiet completion when a
+  sibling ProfessionalAgent state file under the run `agents/` directory is
+  missing retirement, invalid, or unreadable;
 - Stop Hook re-kicks a ProfessionalAgent only when its own state is active;
 - quiet ProfessionalAgent states are not re-kicked;
 - accepted ProfessionalAgents are marked `retired`, sent `/exit`, and have pane
   cleanup verified before MainAgent reports completion;
 - user-requested MainAgent self-exit uses the tmux Main Skill self-exit
-  procedure, reports explicit failure if it cannot submit `/exit`, and is not
-  replaced by a normal completion report or persistent-goal completion message;
+  procedure, writes JSON evidence, clears visible `/exit` leftovers, reports
+  explicit failure if it cannot submit `/exit`, and is not replaced by a normal
+  completion report or persistent-goal completion message;
+  it resolves the MainAgent pane from `AGENT_ORCHESTRA_TMUX_PANE` or Agent
+  state `tmux_target` and never from an unqualified active-pane lookup;
+- SelfE2E final self-exit uses
+  `agent_orchestra_minimal.self_e2e_finalizer` when the copied-runtime status
+  must become `done` after current-session self-exit evidence; the finalizer
+  records active binding, runs self-exit for that pane, writes the result JSON,
+  then writes/reads copied-runtime `status` as `done` from the finalized shared
+  task readback, with `session_gone: true` proving the dedicated SelfE2E
+  session disappeared;
+- SelfE2E done evidence includes multi-viewpoint search, ProfessionalAgent
+  review, ServiceE2E intake/replay, standard verification, final candidate
+  sweep, zero unresolved Acceptance/Gates/Candidates/open work, and finalizer
+  status readback;
 - verification uses `unittest`, direct Python `py_compile`,
   `git diff --check`, and path-form Nix checks when Git-backed generated-copy
   visibility would otherwise hide untracked fixture files;
 - missing environment, MCP, tool, Docker, browser, credential, network, or
   service prerequisites trigger alternate completion routes or a concrete
   `needs_user` request, not a vague stop;
+- ordinary in-scope edit/test/rebuild/dev-server/pane-recovery approval
+  friction is treated as an AgentOrchestra continuation defect or routed around
+  autonomously; `needs_user` is used only for concrete external actions such as
+  credentials, account/provider setup, payment, physical device interaction,
+  production/public release approval, destructive/irreversible action,
+  legal/security judgment, or explicit scope expansion;
 - cleanup preserves unknown untracked files, supervisor status files, and
   `result`/`result-*` symlinks unless the current run created them;
 - runtime code remains small, mechanical, and responsibility-limited.

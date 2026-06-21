@@ -188,6 +188,7 @@ def _start(args: argparse.Namespace) -> int:
         args.port,
         args.startup_timeout,
         log_path,
+        settle_time=min(max(args.startup_timeout, 2.0), 3.0),
         health_url=args.health_url,
         health_contains=args.health_contains,
         health_timeout=args.health_timeout,

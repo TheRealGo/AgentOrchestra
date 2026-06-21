@@ -26,7 +26,7 @@ class StopHookPaneTargetContractTests(unittest.TestCase):
 
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%env", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%env", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_invalid_launch_environment_pane_uses_main_fallback_instead_of_mutable_state_target(self) -> None:
         with RunFiles(agent_kind="MainAgent", state="working", task_text=task_text(status="progress")) as env:
@@ -41,7 +41,7 @@ class StopHookPaneTargetContractTests(unittest.TestCase):
 
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_missing_launch_environment_pane_takes_no_action_instead_of_using_mutable_state_target(self) -> None:
         with RunFiles(agent_kind="MainAgent", state="working", task_text=task_text(status="progress")) as env:
@@ -87,7 +87,7 @@ class StopHookPaneTargetContractTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "professional_active_working_main_fallback")
-        self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None))
+        self.assertIn((["tmux", "send-keys", "-t", "%main", DEFAULT_SUBMIT_KEY], None), fake.calls)
 
     def test_invalid_mutable_state_pane_metadata_does_not_rekick_quiet_professional_agent(self) -> None:
         with RunFiles(

@@ -31,6 +31,12 @@ behavior.
 8. まだ改善余地があれば次サイクルへ進む。
 9. すべての改善余地がなくなった、またはユーザー判断待ちになったときだけ止まる。
 
+通常の編集・テスト・依存導入・dev server・Docker compose・pane復旧・検証 retry
+など、現在のユーザー許可と編集範囲に収まる作業はユーザー判断待ちではない。
+AgentTeamが実行できない外部行動、例えばcredential、account/provider設定、
+payment、物理device操作、本番公開承認、破壊的または不可逆な操作、法務/安全
+判断、明示的なscope拡張だけを具体的な `needs_user` として扱う。
+
 自明なタスクを除き、MainAgentが一人で編集して終わるのは価値に反する。
 
 ## MainAgent の役割

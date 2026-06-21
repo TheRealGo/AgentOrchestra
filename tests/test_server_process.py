@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import io
+import os
+import shlex
 import signal
 import sys
 import tempfile
@@ -31,6 +33,11 @@ class ServerProcessTests(unittest.TestCase):
             port = 9876
 
             with (
+                mock.patch.dict(
+                    os.environ,
+                    {"AGENT_ORCHESTRA_AGENT_ID": "pro-env", "AGENT_ORCHESTRA_TMUX_PANE": "%222"},
+                    clear=False,
+                ),
                 mock.patch.object(server_health, "tcp_listening", return_value=True),
                 redirect_stdout(io.StringIO()),
             ):
@@ -67,6 +74,11 @@ class ServerProcessTests(unittest.TestCase):
             self.assertEqual(entry["pid"], entry["supervisor_pid"])
             self.assertTrue(Path(entry["stop_file"]).name.startswith("web-"))
             self.assertEqual(entry["status"], "running")
+            self.assertEqual(entry["owner_agent_id"], "pro-env")
+            self.assertEqual(entry["owner_tmux_pane"], "%222")
+            self.assertIn("--manifest", entry["cleanup_command"])
+            self.assertIn(shlex.quote(str(manifest)), entry["cleanup_command"])
+            self.assertIn("--name web", entry["cleanup_command"])
 
             with redirect_stdout(io.StringIO()):
                 stop_result = server_process_main(["stop", "--manifest", str(manifest), "--name", "web"])

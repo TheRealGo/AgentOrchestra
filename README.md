@@ -112,6 +112,12 @@ MainAgent decides whether specialist ProfessionalAgents are needed for the task.
 For non-trivial work, it can launch independent Codex CLI sessions for relevant
 layers, send tasks through tmux, collect peer review, and retire those panes
 when their work is accepted.
+If a peer response is needed while the receiving pane is still busy, the
+delivery helper can preserve that response in a run-scoped mailbox and drain it
+after the receiver is input-ready. Later sends to the same pane automatically
+try that drain before sending new text. A queued response is evidence that the
+message was preserved, not accepted delivery; clean completion still requires
+accepted drain evidence or an explicit unresolved disposition.
 
 The runtime does not decide requirements or quality. Agents make those
 judgments; the runtime only provides deterministic rails for launch, tmux
@@ -132,7 +138,8 @@ evidence pointer. Acceptance or gate items marked `blocked` or `needs_user`
 keep the run at `[status] progress` until the external action is resolved or
 the item is explicitly moved out of scope. Accepted ProfessionalAgents are
 marked `retired`, sent `/exit`, and their panes are verified or cleaned up
-before completion is reported.
+before completion is reported. A stale non-retired ProfessionalAgent state file
+under the run `agents/` directory is a quiet-completion blocker.
 
 Missing tools or environment are not a quiet finish condition. Agents are
 expected to try alternate completion routes such as repository-native setup,
@@ -141,6 +148,19 @@ fallbacks, equivalent checks, or a smaller reproducible harness before asking
 the user. If user input is truly required, the task evidence should name the
 attempted routes and the exact credential, approval, network access, service,
 hardware, or scope change needed.
+Routine in-scope work is not user input. Ordinary edits, tests, dependency
+installation into ephemeral/cache directories, dev-server or Docker compose
+startup, pane recovery, bounded tool approval retries, and verification retries
+should continue when they fit the active user permission and project policy. A
+`needs_user` stop is reserved for concrete external action such as a credential,
+approval, network access, service, hardware, physical device interaction,
+account/provider setup, payment, production/public release approval,
+destructive or irreversible action, legal/security judgment, or scope change.
+Low-risk local E2E verification reruns, including browser matrix checks,
+local simulator/iOS smoke checks, and mobile route or interactive evidence
+reruns, are autonomous when they are scoped to the active project/run. Operator
+approval that merely lets those checks proceed is recorded as an
+AgentOrchestra autonomy defect, not as successful zero-issue evidence.
 Requirement documents are resolved case-insensitively and by the user's actual
 paths. A repo with `Spec.md` or `UI.md` must be treated the same as one with
 `SPEC.md`; MainAgent searches for these files before planning or creating the
@@ -179,15 +199,38 @@ and `result`/`result-*` symlinks are preserved or recorded as candidates, not
 deleted to make the worktree look cleaner.
 Unknown local artifacts stay outside current-run cleanup unless that run created
 them; unknown local artifacts are not deleted merely to make status clean.
+Helper process cleanup requires known process identity plus current-run or
+recorded port ownership. Docker compose, container, network, and volume cleanup
+requires the compose project or resource name to match the current run scope;
+ambiguous resources are blocked or recorded as `needs_user` instead of being
+removed speculatively.
+
+For SelfE2E completion, the copied-runtime status file may reach `done` only
+after the shared task file is finalized and the actual
+`main-self-exit*.json` beside it proves `closed: true`, no CAO cleanup, and
+auxiliary cleanup scoped to the same dedicated SelfE2E session with
+`session_gone: true`. That JSON must also match the recorded active MainAgent
+identity in
+`.tmp/self-improvement-e2e/active-main-session.json` by exact `pane` and
+`session_name`; a separate proof or final helper session is not valid evidence
+for the active run. The packaged
+`agent_orchestra_minimal.self_e2e_finalizer` is the atomic handoff for this
+ordering: it records the active binding, runs self-exit, writes the result JSON,
+and only then writes/reads the copied-runtime status as `done`.
+The finalized SelfE2E ledger must also include explicit evidence for
+multi-viewpoint search, ProfessionalAgent review, ServiceE2E intake/replay,
+standard verification, final candidate sweep, zero unresolved
+Acceptance/Gates/Candidates/open work, and finalizer status readback.
 
 ## Target And Edit Roots
 
 The requested target project remains the Agent's scoped project data. When that
-target is nested inside a larger Git worktree, launch material also grants the
-worktree root as an editable access root so Agents can run `git status`, patch
-tracked files, and verify from the repository root without widening the user
-request. Agents use `AGENT_ORCHESTRA_TARGET_PROJECT` for the requested scope and
-`AGENT_ORCHESTRA_EDIT_ROOT` for git, patching, and verification commands.
+target is nested inside a larger Git worktree, AgentOrchestra does not grant the
+parent Git root as an editable access root by default. Agents use
+`AGENT_ORCHESTRA_TARGET_PROJECT` and `AGENT_ORCHESTRA_EDIT_ROOT` for the same
+scoped target unless the operator explicitly opts into the legacy parent-root
+mode with `AGENT_ORCHESTRA_INCLUDE_PARENT_GIT_ROOT=1` for a run that truly must
+edit from the larger repository root.
 
 ## Check Your Environment
 

@@ -255,6 +255,25 @@ class CodexConfigContractTests(unittest.TestCase):
             report.lines,
         )
 
+    def test_task_file_doctor_reports_unretired_professional_agent_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            task_file = root / "tasks.ini"
+            task_file.write_text(DEFAULT_TASK_FILE, encoding="utf-8")
+            agent_dir = root / "agents" / "pa-implementation-08"
+            agent_dir.mkdir(parents=True)
+            state = '{"agent_id":"pa-implementation-08","agent_kind":"ProfessionalAgent","state":"ready","tmux_target":"%169"}\n'
+            (agent_dir / "state.json").write_text(state, encoding="utf-8")
+
+            report = inspect_task_file(task_file)
+
+        self.assertTrue(report.failed)
+        self.assertIn("shared task file has finalization blockers:", report.lines)
+        self.assertIn(
+            "  agent-state:pa-implementation-08: ProfessionalAgent not retired: ready",
+            report.lines,
+        )
+
 
 def _toml_key_text(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')

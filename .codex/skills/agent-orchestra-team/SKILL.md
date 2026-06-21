@@ -87,8 +87,11 @@ fixable AgentOrchestra runtime, coordination, launch, environment, MCP/tooling,
 or completion-contract defect as `deferred` merely because the current product
 task found a workaround. Record the workaround as product-continuation evidence,
 add the defect to `[Backlog]`, keep `[status] progress`, implement the
-AgentOrchestra fix, and require a later E2E or focused regression check before
-changing that candidate to `integrated`.
+AgentOrchestra fix, and require later verification before changing that
+candidate to `integrated`. For live delivery, ProfessionalAgent retirement,
+session-boundary, MainAgent self-exit, or completion-status defects, focused
+unit regressions are not enough: require a later clean live E2E before changing
+the candidate to `integrated` or treating the run as zero-issue.
 Also require all `[Acceptance]` items and `[Gates]` items to be resolved before
 `[status] done`; unresolved acceptance or gate blockers are continuation
 conditions, not final-report details. For `[Acceptance]` and `[Gates]`,
@@ -138,6 +141,14 @@ requirements still need refinement, write open placeholders with
 `evidence=pending` and refine them later. For non-trivial tasks, an empty
 `[Acceptance]`/`[Gates]` ledger while MainAgent continues into code audit is an
 orchestration defect, not a valid planning phase.
+Classify completion gates by the user's completion profile. In a
+`local_two_user_production_like` service E2E, local Safari, iPhone Safari,
+direct local install, persistence, and production-compatible architecture
+evidence can be blocking, but public store, legal, production provider, and
+public release evidence must be deferred or out-of-scope unless the user
+explicitly changes the release target to `public_release`. Record that profile
+classification in the Acceptance/Gates evidence so later readiness aggregation
+does not reintroduce public-release blockers into a local-first run.
 
 Use independent ProfessionalAgents when the task is broad, open-ended,
 multi-layer, SPEC/runtime-related, layer-instruction-related,
@@ -188,6 +199,27 @@ tooling, equivalent checks, or a smaller reproducible harness. If escalation is
 still required, the task file evidence must name the attempted routes and the
 exact missing credential, approval, network access, service, hardware, or scope
 change needed from the user.
+Routine work inside the active editable surface is not a valid reason to stop
+in `needs_user`. Continue through ordinary in-scope file edits, tests,
+dependency installation into ephemeral/cache dirs, dev-server or Docker compose
+startup, pane recovery, bounded tool approval retries, and verification retries
+when they fit the active user permission and project policy. If host Codex
+approval UI appears for such low-risk in-scope work, either complete the
+approved route with the available permission mechanism, use an equivalent
+autonomous route, or record a fixable AgentOrchestra candidate and keep
+`[status] progress`. Do not reject that candidate solely because the current
+Codex build lacks a blanket auto-approval feature. Use `needs_user` only for
+concrete external action the AgentTeam cannot perform or safely infer, such as
+credentials, account/provider setup, payment, physical device interaction,
+production/public release approval, destructive or irreversible action,
+legal/security judgment, or explicit scope expansion.
+Low-risk local browser, simulator, iOS, mobile, and production-like local E2E
+reruns are autonomous verification when scoped to the project/run and required
+by active gates. Run-scoped helper process cleanup is autonomous only with known
+process identity plus current-run or recorded-port ownership. Docker cleanup is
+autonomous only when compose project or resource name proves current-run scope.
+CAO or operator approval used merely to pass these actions is an
+AgentOrchestra autonomy defect, not zero-issue evidence.
 Do not let cleanup become an implicit refactor of the user's workspace. Agents
 may clean only specific disposable resources created for the current run, such
 as manifest-recorded helper processes, stopped-process stop files, scratch

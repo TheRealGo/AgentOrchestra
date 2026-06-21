@@ -176,11 +176,14 @@ finalization.
 For AgentOrchestra runtime, launch, MCP, tmux delivery, visual-tooling, or
 coordination defects observed during an E2E run, `integrated` means a
 corresponding AgentOrchestra code/configuration/contract fix was actually made
-and a later E2E or focused regression check proved the defect no longer
-recurs. A current-run workaround, such as disabling MCP inheritance for a
-ProfessionalAgent, bypassing a failed pane, or having MainAgent perform a QA
-gate, is evidence that the product task can continue; it is not enough
-evidence for `integrated`.
+and later verification proved the defect no longer recurs. For live delivery,
+ProfessionalAgent retirement, session-boundary, MainAgent self-exit, or
+completion-status defects, that verification must be a later clean live E2E;
+focused unit regressions can support the fix but cannot convert the same run to
+zero-issue or `integrated`. A current-run workaround, such as disabling MCP
+inheritance for a ProfessionalAgent, bypassing a failed pane, or having
+MainAgent perform a QA gate, is evidence that the product task can continue; it
+is not enough evidence for `integrated`.
 
 ## Agent State Updates
 

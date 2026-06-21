@@ -58,8 +58,8 @@ class StopHookDeliveryFailureTests(unittest.TestCase):
         self.assertIsNotNone(decision)
         self.assertTrue(decision.should_wake)
         self.assertEqual(decision.reason, "main_status_progress_wake_delivery_unaccepted")
-        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"]]
-        self.assertEqual(len(send_key_calls), 3)
+        send_key_calls = [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"] and "-l" not in call[0]]
+        self.assertEqual(len(send_key_calls), 4)
 
     def test_invalid_agent_state_fallback_reports_wake_delivery_failure(self) -> None:
         with RunFiles(

@@ -48,6 +48,8 @@ DEFAULT_COMPOSER_PROMPTS = (
     "Improve documentation in @filename",
     "Explain this codebase",
     "Implement {feature}",
+    "Summarize recent commits",
+    "Run /review on my current changes",
 )
 AGENT_MESSAGE_ROLES = ("MainAgent", "ProfessionalAgent")
 AGENT_ID_PROMPT = re.compile(r"^(?:main|mainagent|pro-[A-Za-z0-9_.-]+)(?::|\s|$)")
@@ -134,7 +136,7 @@ def looks_started(capture: str) -> bool:
 def line_has_start_marker(line: str, markers: tuple[str, ...]) -> bool:
     if line[:1].isspace():
         return False
-    if line.startswith("• Starting MCP servers"):
+    if line.startswith(("• Starting MCP servers", "• No previous message to edit.")):
         return False
     return any(line.startswith(marker) for marker in markers)
 
@@ -155,7 +157,16 @@ def has_active_marker(lines: list[str]) -> bool:
 
 
 def looks_interrupted_or_paused(capture: str) -> bool:
-    return "Conversation interrupted" in capture or "Goal paused" in capture
+    return any(
+        line.lstrip().startswith("■ Conversation interrupted")
+        or line.lstrip().startswith("■ Something went wrong")
+        or "tell the model what to do differently" in line
+        or (
+            line.lstrip().startswith("gpt-")
+            and ("Goal paused" in line or "Goal blocked" in line)
+        )
+        for line in capture.splitlines()
+    )
 
 
 def looks_usage_limited(capture: str) -> bool:
@@ -198,14 +209,28 @@ def agent_prompt_started_work_without_probe(
     prompt_text = normalized_wrapped_line_window(lines, prompt_index).lstrip("›> ")
     normalized_text = " ".join(text.strip().split())
     return (
-        len(prompt_text) >= MIN_MESSAGE_PROBE_CHARS
-        and normalized_text.startswith(prompt_text)
+        (
+            prompt_text == normalized_text
+            or (
+                len(prompt_text) >= MIN_MESSAGE_PROBE_CHARS
+                and normalized_text.startswith(prompt_text)
+            )
+        )
         and "\n".join(lines) != baseline_capture
     )
 
 
 def looks_queued(capture: str) -> bool:
     return any(line_has_queue_marker(line) for line in capture.splitlines())
+
+
+def looks_queued_before_started(capture: str) -> bool:
+    for line in capture.splitlines():
+        if line_has_queue_marker(line):
+            return True
+        if line_has_start_marker(line, START_MARKERS + LONG_START_MARKERS):
+            return False
+    return False
 
 
 def line_has_queue_marker(line: str) -> bool:
@@ -223,6 +248,10 @@ def looks_recoverable_choice_menu(capture: str) -> bool:
 def looks_recoverable_startup_notice(capture: str) -> bool:
     lowered = capture.casefold()
     return any(marker.casefold() in lowered for marker in RECOVERABLE_STARTUP_MARKERS)
+
+
+def looks_startup_in_progress(capture: str) -> bool:
+    return "starting mcp servers" in capture.casefold()
 
 
 def message_probes(text: str) -> tuple[str, ...]:

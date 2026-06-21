@@ -44,6 +44,31 @@ class HandoffReleaseEvidenceTests(unittest.TestCase):
         ):
             self.assertIn(phrase, section)
 
+    def test_current_self_improvement_e2e_records_integration_evidence(self) -> None:
+        section = self._handoff_section(
+            "Latest generated-copy checks after the 2026-06-19 self-improvement E2E\n  integration sweep",
+            "Latest AgentTeam sweep after the 2026-06-08 live SPEC mirror verification pass",
+        )
+
+        for phrase in (
+            "parent `AgentOrchestra-dev` repo was kept outside the edit scope",
+            "`pro-runtime-16`, `pro-qa-15`, and `pro-env-22`",
+            "degraded delivery observed for `pro-qa-15` and `pro-env-22`",
+            "tmux delivery `--result-json` evidence",
+            "`server_process` owner/cleanup manifest evidence",
+            "`pane_current_command` is `codex`",
+            "`.tmp/self-improvement-e2e/status`",
+            "`Something went wrong` Codex TUI screens",
+            "`python3 -m unittest discover -s tests` passed, 378 tests",
+            "`git diff --check` passed",
+            "`nix flake check --no-build path:.` passed",
+            "`nix build path:.#checks.aarch64-darwin.source-contract --no-link` passed",
+            "candidate-ledger disposition: integrated",
+            "deterministic finalization blockers after this scoped sweep: none known",
+            "blocking objections: none known from accepted review evidence",
+        ):
+            self.assertIn(phrase, section)
+
     def test_current_review_records_deferred_safe_equals_form_extra_arg_candidate(
         self,
     ) -> None:

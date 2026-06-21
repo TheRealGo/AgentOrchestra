@@ -5,6 +5,7 @@ COMPLETED_CANDIDATE_DISPOSITIONS = frozenset(
     {"integrated", "rejected", "deferred", "blocked", "out-of-scope", "needs_user"}
 )
 OPEN_CANDIDATE_DISPOSITIONS = frozenset({"", "open", "backlog"})
+PLACEHOLDER_CANDIDATE_EVIDENCE = frozenset({"pending", "tbd", "todo", "unknown"})
 
 
 def unresolved_candidate_items(items: list[str]) -> list[str]:
@@ -80,11 +81,13 @@ def candidate_field_key(key: str) -> str:
 
 def candidate_has_required_evidence(item: str, fields: dict[str, str]) -> bool:
     candidate_id, separator, _rest = item.partition(":")
+    evidence = fields.get("evidence", "").strip()
     return bool(
         separator
         and candidate_id.strip()
         and fields.get("summary", "").strip()
-        and fields.get("evidence", "").strip()
+        and evidence
+        and evidence.casefold() not in PLACEHOLDER_CANDIDATE_EVIDENCE
     )
 
 

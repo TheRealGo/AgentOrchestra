@@ -41,7 +41,7 @@ class McpInheritanceContractTests(unittest.TestCase):
         self.assertIn("[mcp_servers.memory]", config)
         self.assertIn("[mcp_servers.playwright.env]", config)
         self.assertIn('TOKEN = "secret-value"', config)
-        self.assertIn("startup_timeout_sec = 90", config)
+        self.assertIn("startup_timeout_sec = 30", config)
         self.assertNotIn('approval_policy = "on-request"', config)
         self.assertNotIn('sandbox_mode = "danger-full-access"', config)
         self.assertNotIn("echo source-hook", config)
@@ -121,7 +121,7 @@ class McpInheritanceContractTests(unittest.TestCase):
         self.assertIn("[mcp_servers.memory]", config)
         self.assertNotIn('approval_policy = "on-request"', config)
 
-    def test_existing_long_mcp_startup_timeout_is_preserved(self) -> None:
+    def test_existing_long_mcp_startup_timeout_is_capped_for_agent_startup(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             codex_home = root / "user-codex"
@@ -140,7 +140,7 @@ class McpInheritanceContractTests(unittest.TestCase):
                 )
                 config = material.config_path.read_text(encoding="utf-8")
 
-        self.assertIn("startup_timeout_sec = 120", config)
+        self.assertIn("startup_timeout_sec = 30", config)
 
     def test_existing_short_mcp_startup_timeout_is_raised_to_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -161,7 +161,7 @@ class McpInheritanceContractTests(unittest.TestCase):
                 )
                 config = material.config_path.read_text(encoding="utf-8")
 
-        self.assertIn("startup_timeout_sec = 90", config)
+        self.assertIn("startup_timeout_sec = 30", config)
 
     def test_doctor_mcp_reports_source_names_playwright_and_commands_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

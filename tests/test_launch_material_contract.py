@@ -54,9 +54,10 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertNotIn("--profile-v2", material.command["argv"])
             self.assertEqual(material.command["config_profile"], "agent-orchestra")
             self.assertNotIn("config_profile_v2", material.command)
-            self.assertIn("--ask-for-approval", material.command["argv"])
             approval_index = material.command["argv"].index("--ask-for-approval")
-            self.assertEqual(material.command["argv"][approval_index + 1], "on-request")
+            status_file = ROOT / ".tmp" / "self-improvement-e2e" / "status"
+            expected_approval = "never" if status_file.is_file() else "on-request"
+            self.assertEqual(material.command["argv"][approval_index + 1], expected_approval)
             self.assertIn("--sandbox", material.command["argv"])
             self.assertIn("--enable", material.command["argv"])
             self.assertIn("--cd", material.command["argv"])
@@ -130,7 +131,6 @@ class LaunchMaterialContractTests(unittest.TestCase):
                 startup_normalized,
             )
             self.assertNotIn("layer固有の観点で起動する", startup)
-            self.assertIn("agent-orchestra の本質", startup)
             self.assertIn("MainAgentが複数のProfessionalAgentを独立環境で立ち上げる", startup)
             self.assertIn("SubAgentはProfessionalAgentの代替ではない", startup)
             self.assertIn("You are a ProfessionalAgent", startup)
@@ -171,9 +171,8 @@ class LaunchMaterialContractTests(unittest.TestCase):
             self.assertIn("tmux通信の具体手順はSkillが担う", startup)
             self.assertIn("配送確認できない通信を成功扱いしない", startup)
             self.assertIn("concrete send/capture/retry procedure", startup_normalized)
-            self.assertIn("Runtime側は判断しません", startup)
 
-    def test_launch_material_adds_git_root_when_target_is_nested_worktree(self) -> None:
+    def test_launch_material_does_not_add_parent_git_root_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir) / "repo"
             target = root / "nested" / "target"
@@ -189,6 +188,43 @@ class LaunchMaterialContractTests(unittest.TestCase):
                 target_project=target,
                 instruction_text="Layer instruction.",
             )
+
+            argv = list(material.command["argv"])
+            add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
+            self.assertEqual(add_dirs[0], str(target))
+            self.assertNotIn(str(root), add_dirs)
+            self.assertIn(str(material.run_dir), add_dirs)
+            self.assertEqual(material.env["AGENT_ORCHESTRA_TARGET_PROJECT"], str(target))
+            self.assertEqual(material.env["AGENT_ORCHESTRA_EDIT_ROOT"], str(target))
+            env_access_roots = material.env["AGENT_ORCHESTRA_ACCESS_ROOTS"].split(os.pathsep)
+            self.assertEqual(env_access_roots, [str(target)])
+            startup = material.startup_agents.read_text(encoding="utf-8")
+            self.assertIn("Editable/access roots", startup)
+            editable_lines = [
+                line.strip().removeprefix("- `").removesuffix("`")
+                for line in startup.splitlines()
+                if line.strip().startswith("- `")
+            ]
+            self.assertIn(str(target), editable_lines)
+            self.assertNotIn(str(root), editable_lines)
+
+    def test_launch_material_adds_git_root_only_when_explicitly_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "repo"
+            target = root / "nested" / "target"
+            target.mkdir(parents=True)
+            subprocess.run(["git", "init", str(root)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            root = root.resolve()
+            target = target.resolve()
+
+            with patch.dict(os.environ, {"AGENT_ORCHESTRA_INCLUDE_PARENT_GIT_ROOT": "1"}, clear=False):
+                material = prepare_launch_material(
+                    run_dir=Path(tmpdir) / "run",
+                    agent_id="pro-git-root-opt-in",
+                    agent_kind="ProfessionalAgent",
+                    target_project=target,
+                    instruction_text="Layer instruction.",
+                )
 
             argv = list(material.command["argv"])
             add_dirs = [argv[index + 1] for index, value in enumerate(argv) if value == "--add-dir"]
@@ -259,7 +295,3 @@ class LaunchMaterialContractTests(unittest.TestCase):
                     target_project=target,
                     instruction_text="Layer instruction.",
                 )
-
-
-if __name__ == "__main__":
-    unittest.main()

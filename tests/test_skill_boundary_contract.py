@@ -30,6 +30,10 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("--enable prevent_idle_sleep", launch_normalized)
         self.assertIn("Path(sys.argv[1])", launch)
         self.assertIn("Do not depend on pane-local shell variables", launch_normalized)
+        self.assertIn("shell-quoted final Python argument", launch_normalized)
+        self.assertIn("Library/Application Support", launch_normalized)
+        self.assertIn("/Users/.../Library/Application/command.json", launch_normalized)
+        self.assertIn("'\"'\"'/path/from/helper/output'\"'\"'", launch)
         self.assertNotIn('Path(os.environ["AGENT_DIR"])', launch)
         self.assertIn("env.json", launch)
         self.assertIn("os.execvpe", launch)
@@ -59,6 +63,8 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("ProfessionalAgent-to-ProfessionalAgent consultation", common)
         self.assertIn("--poll-interval-seconds 0.5", common)
         self.assertIn("--polls-per-attempt 60", common)
+        self.assertIn("--result-json", common)
+        self.assertIn("degraded delivery", common)
         self.assertIn("--allow-short-polls", common)
         self.assertIn("optional peer consultation", common_normalized)
         self.assertIn("Do not use short polling for initial ProfessionalAgent assignments", common)
@@ -72,6 +78,10 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("record the attempted consultation or review request", common_normalized)
         self.assertIn("not delivered", common_normalized)
         self.assertIn("Raw `tmux send-keys` is limited to shell launch commands, `/exit`", common)
+        self.assertIn("delivery helper with `--allow-interrupted-recovery`", common)
+        self.assertIn("Do not use `--allow-interrupted-recovery` for initial assignments", common)
+        self.assertIn("only for explicit recovery instructions", common)
+        self.assertIn("interrupted, paused, or blocked", common)
         self.assertNotIn("For short one-line messages", common)
         self.assertNotIn("MainAgent: please investigate", common)
         self.assertIn("capture-pane", common)
@@ -134,6 +144,37 @@ class SkillBoundaryContractTests(unittest.TestCase):
         self.assertIn("delivery is not confirmed", combined)
         self.assertIn("Before delivery, add the ProfessionalAgent work item to `[InProgress]`", combined)
 
+    def test_professional_agent_launch_requires_verified_pane_identity(self) -> None:
+        launch = (CODEX / "skills" / "agent-orchestra-launch" / "SKILL.md").read_text(encoding="utf-8")
+        main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
+        template = (CODEX / "agent_orchestra_minimal" / "agent_templates" / "main.AGENTS.md").read_text(
+            encoding="utf-8"
+        )
+        combined = " ".join((launch + "\n" + main + "\n" + template).split())
+
+        for phrase in (
+            "verify the exact pane identity",
+            "current dedicated orchestra session",
+            "pane_current_command",
+            "pane_current_path",
+            "must match `command.json` `cwd`",
+            "MainAgent workspace",
+            "failed ProfessionalAgent launch",
+            "even if `state.json` says `ready`",
+            "Do not send assignments",
+            "echo launch-test",
+            "paste-test",
+            "launch-routing `[Candidates]` item",
+            "do not launch more Agents",
+            "verified session name",
+            "Raw `tmux send-keys` is only for shell launch commands and `/exit`",
+        ):
+            self.assertIn(phrase, combined)
+
+        self.assertIn("tmux display-message -p -t \"$PANE\"", combined)
+        self.assertIn("#{pane_id} #{pane_current_command} #{pane_current_path}", combined)
+        self.assertIn("do not continue launching more Agents from an unverified pane set", combined)
+
     def test_tmux_main_skill_documents_retirement_cleanup_sequence(self) -> None:
         main = (CODEX / "skills" / "agent-orchestra-tmux-main" / "SKILL.md").read_text(encoding="utf-8")
         normalized = " ".join(main.split())
@@ -143,6 +184,8 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "Send `/exit`",
             "Do not skip this step",
             "`kill-pane` is only cleanup after an attempted `/exit`",
+            "packaged `agent_orchestra_minimal.self_exit` helper",
+            "handles intermediate Codex prompts such as the Memories opt-in prompt",
             "Verify pane cleanup and use `kill-pane`",
             "Set `retired` before `/exit`",
             "Retirement is not complete until the pane is gone",
@@ -166,11 +209,22 @@ class SkillBoundaryContractTests(unittest.TestCase):
             "If the user explicitly instructed MainAgent to leave the orchestra",
             "submit `/exit` to MainAgent's own pane as the final tmux action",
             "Do not use delayed or background self-exit shell jobs",
-            "Use a detached Python self-exit as the final tool action",
-            'subprocess.run(["tmux", "send-keys", "-t", pane, "/exit", submit_key]',
-            'subprocess.run(["tmux", "send-keys", "-t", pane, submit_key]',
-            "report the failure explicitly",
+            "Use the packaged `agent_orchestra_minimal.self_exit` helper as the final tool action",
+            "`pane_current_command` is still a Codex CLI command such as `node` or `codex`",
+            "alternates `C-m`/`C-j` submit keys",
+            "writes JSON evidence",
+            "clears queued `/exit` text",
+            "resolve the pane from Agent state `tmux_target`",
+            "Do not fall back to a bare `tmux display-message` active-pane lookup",
+            '"${AGENT_ORCHESTRA_PYTHON:-python3}"',
+            "-m agent_orchestra_minimal.self_exit",
+            "--result-path",
+            "leak `/exit` into the shell prompt",
+            "The helper's result file is the self-exit evidence",
             "Do not claim that MainAgent exited",
+            "agent_orchestra_minimal.self_e2e_finalizer",
+            "--task-file",
+            "Do not rely on CAO cleanup, a post-exit Hook wake, or a separate proof session",
         ):
             self.assertIn(phrase, normalized)
 
@@ -183,9 +237,18 @@ class SkillBoundaryContractTests(unittest.TestCase):
         for phrase in (
             "If the user explicitly says to leave the orchestra with `/exit`",
             "Do not invent ad hoc delayed or background shell self-exit jobs",
-            "Use the bounded detached Python self-exit procedure",
+            "Use the packaged `agent_orchestra_minimal.self_exit` procedure",
             "documented by the `agent-orchestra-tmux-main` Skill as the final tool action",
-            "report the explicit self-exit failure",
+            "read your Agent state `tmux_target` instead of using the active client pane",
+            "resolve the pane from `AGENT_ORCHESTRA_TMUX_PANE` or Agent state `tmux_target`",
+            "only send keys while `pane_current_command` is still a Codex CLI command such as `node` or `codex`",
+            "must write JSON evidence",
+            "must clear visible `/exit` leftovers",
+            "Report the explicit self-exit failure",
+            "without shell prompt input leftovers",
+            "agent_orchestra_minimal.self_e2e_finalizer",
+            "--task-file",
+            "Do not rely on a separate post-exit wake",
             "Do not recompose the Codex launch command by hand",
             "feature flags such as `--enable prevent_idle_sleep`",
             "`command.json` is the source of truth",
@@ -228,7 +291,9 @@ class SkillBoundaryContractTests(unittest.TestCase):
 
         self.assertIn("do not mark a fixable AgentOrchestra runtime", normalized)
         self.assertIn("add the defect to `[Backlog]`, keep `[status] progress`", normalized)
-        self.assertIn("require a later E2E or focused regression check", normalized)
+        self.assertIn("require later verification before changing that candidate to `integrated`", normalized)
+        self.assertIn("focused unit regressions are not enough", normalized)
+        self.assertIn("require a later clean live E2E", normalized)
 
 
 if __name__ == "__main__":

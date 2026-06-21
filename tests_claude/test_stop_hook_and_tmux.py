@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".claude"))
 
+from agent_orchestra_minimal.agent_state import AgentState  # noqa: E402
 from agent_orchestra_minimal.task_file import DEFAULT_TASK_FILE  # noqa: E402
 from agent_orchestra_minimal.tmux_wake import (  # noqa: E402
     DEFAULT_SUBMIT_KEY,
@@ -117,6 +118,54 @@ class StopHookAndTmuxTests(NoWakeSleepMixin, unittest.TestCase):
         self.assertFalse(decision.should_wake)
         self.assertEqual(fake.calls, [])
 
+    def test_main_agent_wakes_when_done_but_sibling_professional_agent_is_not_retired(self) -> None:
+        for state in ("ready", "working", "ready_for_review", "done", "blocked"):
+            with self.subTest(state=state):
+                with self.run_files(
+                    agent_kind="MainAgent",
+                    state="working",
+                    task_text=task_text(status="done", done=["accepted final result"]),
+                ) as env:
+                    self.write_sibling_professional_state(env, state)
+                    fake = FakeTmux()
+                    decision = run_stop_hook(env, runner=fake)
+
+                self.assertIsNotNone(decision)
+                self.assertTrue(decision.should_wake)
+                self.assertEqual(decision.reason, "main_done_with_unretired_professional_agents")
+                self.assertWakeSent(fake)
+
+    def test_main_agent_stays_quiet_when_done_and_sibling_professional_agent_is_retired(self) -> None:
+        with self.run_files(
+            agent_kind="MainAgent",
+            state="working",
+            task_text=task_text(status="done", done=["accepted final result"]),
+        ) as env:
+            self.write_sibling_professional_state(env, "retired")
+            fake = FakeTmux()
+            decision = run_stop_hook(env, runner=fake)
+
+        self.assertIsNotNone(decision)
+        self.assertFalse(decision.should_wake)
+        self.assertEqual(fake.calls, [])
+
+    def test_main_agent_wakes_when_done_but_sibling_professional_agent_state_is_invalid(self) -> None:
+        with self.run_files(
+            agent_kind="MainAgent",
+            state="working",
+            task_text=task_text(status="done", done=["accepted final result"]),
+        ) as env:
+            agent_dir = Path(env["AGENT_ORCHESTRA_TASK_FILE"]).parent / "agents" / "pa-invalid"
+            agent_dir.mkdir(parents=True)
+            (agent_dir / "state.json").write_text("not-a-valid-state\n", encoding="utf-8")
+            fake = FakeTmux()
+            decision = run_stop_hook(env, runner=fake)
+
+        self.assertIsNotNone(decision)
+        self.assertTrue(decision.should_wake)
+        self.assertEqual(decision.reason, "main_done_with_unretired_professional_agents")
+        self.assertWakeSent(fake)
+
     def test_main_agent_wakes_when_done_status_has_unresolved_candidate(self) -> None:
         with self.run_files(
             agent_kind="MainAgent",
@@ -197,6 +246,15 @@ class StopHookAndTmuxTests(NoWakeSleepMixin, unittest.TestCase):
         )
         self.assertEqual(fake.calls[-3], (["tmux", "send-keys", "-t", "%7", DEFAULT_SUBMIT_KEY], None))
         self.assertEqual(fake.calls[-1], (["tmux", "delete-buffer", "-b", wake_buffer], None))
+
+    def write_sibling_professional_state(self, env: dict[str, str], state: str) -> None:
+        agent_dir = Path(env["AGENT_ORCHESTRA_TASK_FILE"]).parent / "agents" / "pa-sibling"
+        AgentState(
+            state=state,  # type: ignore[arg-type]
+            agent_id="pa-sibling",
+            agent_kind="ProfessionalAgent",
+            tmux_target="%9",
+        ).write(agent_dir / "state.json")
 
     def wakeBuffer(self, fake: FakeTmux) -> str:
         self.assertGreaterEqual(len(fake.calls), 1)

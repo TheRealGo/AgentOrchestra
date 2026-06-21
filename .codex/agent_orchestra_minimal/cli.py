@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import subprocess
@@ -12,8 +13,10 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent_orchestra_minimal.doctor import doctor_command
+from agent_orchestra_minimal.launch_args import SELF_E2E_STATUS_RELATIVE_PATH
 from agent_orchestra_minimal.launch_material import LaunchMaterial, prepare_launch_material
 from agent_orchestra_minimal.process_env import clean_codex_env
+from agent_orchestra_minimal.service_e2e_intake_cli import service_e2e_intake_command
 
 
 MAIN_LAYER_PREFIX = "15_"
@@ -21,7 +24,7 @@ MAIN_LAYER_PREFIX = "15_"
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0] not in {"start", "doctor", "-h", "--help"}:
+    if not argv or argv[0] not in {"start", "doctor", "service-e2e-intake", "-h", "--help"}:
         return start_main(parse_start_args(argv))
     if argv[0] == "start":
         return start_main(parse_start_args(argv[1:]))
@@ -65,11 +68,28 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="scan AgentOrchestra server_process manifests and report live leftover helpers",
     )
+    doctor.add_argument(
+        "--autonomy-policy",
+        action="store_true",
+        help="show low-risk verification, cleanup, and true UserNeeded classifications",
+    )
     doctor.add_argument("--server-process-root", default=str(default_run_root()), help=argparse.SUPPRESS)
+    doctor.add_argument(
+        "--tmux-liveness-pane",
+        help="sample a Codex TUI tmux pane and fail if it is visibly Working without substantive output changes",
+    )
+    doctor.add_argument("--tmux-liveness-samples", type=int, default=2, help=argparse.SUPPRESS)
+    doctor.add_argument("--tmux-liveness-interval-seconds", type=float, default=1.0, help=argparse.SUPPRESS)
+    intake = subparsers.add_parser("service-e2e-intake", help="render or append ServiceE2E defect intake")
+    intake.add_argument("--brief", help="ServiceE2E defect brief text")
+    intake.add_argument("--brief-file", help="path to a ServiceE2E defect brief")
+    intake.add_argument("--task-file", help="append rendered intake to this shared task file and keep status progress")
 
     args = parser.parse_args(argv)
     if args.command == "doctor":
         return doctor_command(args)
+    if args.command == "service-e2e-intake":
+        return service_e2e_intake_command(args)
     parser.error(f"unknown command: {args.command}")
     return 2
 
@@ -95,6 +115,7 @@ def start_main(args: argparse.Namespace) -> int:
         print_start_material(material)
         return 0
 
+    write_selfe2e_active_main_binding(target, tmux_pane, material.env)
     env = clean_codex_env(material.env)
     os.chdir(material.workspace)
     os.execvpe("codex", material.command["argv"], env)
@@ -163,6 +184,57 @@ def current_tmux_pane() -> str | None:
     if pane := os.environ.get("TMUX_PANE"):
         return pane
     return None
+
+
+def write_selfe2e_active_main_binding(
+    target_project: Path,
+    tmux_pane: str | None,
+    env: dict[str, str] | None = None,
+    *,
+    runner: object = subprocess.run,
+) -> Path | None:
+    status_path = target_project / SELF_E2E_STATUS_RELATIVE_PATH
+    if not status_path.is_file() or not tmux_pane:
+        return None
+    session_name = tmux_session_name(tmux_pane, runner=runner)
+    if not session_name:
+        return None
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    binding_path = status_path.parent / "active-main-session.json"
+    binding_path.write_text(
+        json.dumps(
+            {
+                "pane": tmux_pane,
+                "session_name": session_name,
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if env is not None:
+        env["AGENT_ORCHESTRA_SELF_E2E_SESSION"] = session_name
+    return binding_path
+
+
+def tmux_session_name(
+    tmux_pane: str,
+    *,
+    runner: object = subprocess.run,
+) -> str:
+    try:
+        result = runner(
+            ["tmux", "display-message", "-p", "-t", tmux_pane, "#{session_name}"],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError:
+        return ""
+    return (result.stdout or "").strip() if result.returncode == 0 else ""
 
 
 def pane_from_current_tty() -> str | None:

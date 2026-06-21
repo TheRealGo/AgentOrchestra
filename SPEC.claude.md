@@ -275,7 +275,8 @@ launch contract above:
   dialog;
 - the Stop Hook reads stdin, decides re-kick from task/state, and dispatches a
   tmux wake while open work remains; it stays quiet after `status=done` with no
-  open work and completed `[Candidates]` dispositions;
+  open work, completed `[Candidates]` dispositions, and no stale non-retired
+  sibling ProfessionalAgent state files;
 - verification uses `python3 -m unittest discover -s tests_claude`,
   `python3 -m py_compile` over `.claude` runtime Python, `git diff --check`, and
   the Nix `claude-source-contract` check;

@@ -203,7 +203,7 @@ Impact:
 
 Non-critical observations:
 
-- Direct `nix flake check --no-build` inside `/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`
+- Direct `nix flake check --no-build` inside `${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`
   failed because `AgentOrchestra/flake.nix` is untracked from the parent Git
   repository. MainAgent used a temporary copied fixture for Nix verification,
   which passed.
@@ -259,7 +259,7 @@ Observed issues:
 - `pytest` / `python3 -m pytest` failed or was unavailable because pytest is not
   installed in the local Python environment. MainAgent used the project-standard
   `unittest` flow, which passed.
-- Direct `nix flake check --no-build` inside `/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`
+- Direct `nix flake check --no-build` inside `${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`
   failed because `AgentOrchestra/flake.nix` is untracked from the parent Git
   repository. MainAgent used a temporary copied fixture for Nix verification,
   which passed.
@@ -324,7 +324,7 @@ Observed issues:
   `C-m` submit after the first `tmux send-keys`; both Pro panes then proceeded
   normally. This did not block the run, but it is worth watching as a possible
   TUI-submit reliability signal.
-- Direct `nix flake check --no-build` inside `/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`
+- Direct `nix flake check --no-build` inside `${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`
   failed because `AgentOrchestra/flake.nix` is untracked from the parent Git
   repository. MainAgent used a temporary copied fixture for Nix verification,
   which passed.
@@ -831,7 +831,7 @@ Verification:
 - MainAgent reported `python3 -m unittest discover -s tests` inside
   `AgentOrchestra/`: 101 tests OK.
 - Observer reran the same command from
-  `/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`: 101 tests OK.
+  `${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`: 101 tests OK.
 
 Important communication issue:
 
@@ -1400,7 +1400,7 @@ Evidence:
   `python3 -m unittest discover -s tests`: 129 tests OK.
 - `nix flake check --no-build` from inside the untracked generated copy failed
   because parent Git cannot materialize `AgentOrchestra/flake.nix`; the
-  equivalent `path:/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`
+  equivalent `path:${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`
   evaluation passed.
 - MainAgent closed the shared task file with `[status] done`, no open work, and
   no unresolved candidates. ProfessionalAgent pane cleanup completed after the
@@ -1491,8 +1491,8 @@ Evidence:
   are not inferred as the current Agent pane.
 - Generated-copy verification reported `python3 -m unittest discover -s tests`:
   133 tests OK, runtime `py_compile`: OK, `git diff --check`: OK,
-  `nix flake check --no-build path:/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra`:
-  OK, and `nix build path:/Users/therealgo/Codex/INSTRUCTIONS/AgentOrchestra#checks.aarch64-darwin.source-contract`:
+  `nix flake check --no-build path:${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra`:
+  OK, and `nix build path:${AGENT_ORCHESTRA_LEGACY_ROOT}/AgentOrchestra#checks.aarch64-darwin.source-contract`:
   OK.
 - The normal-form Nix check inside the generated copy still failed because
   `AgentOrchestra/` is intentionally untracked from the parent Git tree; the

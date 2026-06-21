@@ -57,10 +57,12 @@ If `codex features list` reports `prevent_idle_sleep`, runtime may also add
 `--enable prevent_idle_sleep`; set
 `AGENT_ORCHESTRA_DISABLE_PREVENT_IDLE_SLEEP=1` before preparing launch material
 to opt out.
-When the requested target is nested inside a Git worktree, runtime may add the
-worktree root as an additional `--add-dir`; Agents should use
-`$AGENT_ORCHESTRA_EDIT_ROOT` for git status, patching, and verification while
-preserving `$AGENT_ORCHESTRA_TARGET_PROJECT` as the user-requested scope.
+When the requested target is nested inside a Git worktree, runtime must not add
+the parent worktree root by default. `$AGENT_ORCHESTRA_EDIT_ROOT` should remain
+the requested target so generated self-improvement copies and nested targets
+stay isolated. Set `AGENT_ORCHESTRA_INCLUDE_PARENT_GIT_ROOT=1` only for an
+explicit legacy run that must edit the outer worktree, and record that choice
+as launch-boundary evidence.
 `CODEX_HOME` points at the isolated `codex_home`.
 Runtime copies only `[mcp_servers.*]` and child tables from
 `$CODEX_HOME/config.toml`, falling back to `~/.codex/config.toml`. It does not
@@ -121,16 +123,19 @@ Preferred pattern inside the target shell pane:
 
 ```sh
 PYTHON_BIN="${AGENT_ORCHESTRA_PYTHON:-python3}"
-"$PYTHON_BIN" -c 'import json, os, sys; from pathlib import Path; agent=Path(sys.argv[1]); cmd=json.loads((agent/"command.json").read_text()); env=json.loads((agent/"env.json").read_text()); os.chdir(cmd["cwd"]); os.execvpe(cmd["argv"][0], cmd["argv"], env)' /path/from/helper/output
+"$PYTHON_BIN" -c 'import json, os, sys; from pathlib import Path; agent=Path(sys.argv[1]); cmd=json.loads((agent/"command.json").read_text()); env=json.loads((agent/"env.json").read_text()); os.chdir(cmd["cwd"]); os.execvpe(cmd["argv"][0], cmd["argv"], env)' '/path/from/helper/output'
 ```
 
 When sending that launch command through `tmux send-keys`, quote the whole shell
-command with single quotes and pass the absolute `agent_dir` path as the final
-Python argument. Do not depend on pane-local shell variables unless they are
-exported into the Python process:
+command with single quotes and pass the absolute `agent_dir` path as a
+shell-quoted final Python argument. Run directories commonly live under paths
+such as `~/Library/Application Support/...`; if the final `agent_dir` argument
+is not quoted, the shell can split it and make Codex look for
+`/Users/.../Library/Application/command.json`. Do not depend on pane-local shell
+variables unless they are exported into the Python process:
 
 ```sh
-tmux send-keys -t "$PANE" 'PYTHON_BIN="${AGENT_ORCHESTRA_PYTHON:-python3}"; "$PYTHON_BIN" -c '"'"'import json, os, sys; from pathlib import Path; agent=Path(sys.argv[1]); cmd=json.loads((agent/"command.json").read_text()); env=json.loads((agent/"env.json").read_text()); os.chdir(cmd["cwd"]); os.execvpe(cmd["argv"][0], cmd["argv"], env)'"'"' /path/from/helper/output' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
+tmux send-keys -t "$PANE" 'PYTHON_BIN="${AGENT_ORCHESTRA_PYTHON:-python3}"; "$PYTHON_BIN" -c '"'"'import json, os, sys; from pathlib import Path; agent=Path(sys.argv[1]); cmd=json.loads((agent/"command.json").read_text()); env=json.loads((agent/"env.json").read_text()); os.chdir(cmd["cwd"]); os.execvpe(cmd["argv"][0], cmd["argv"], env)'"'"' '"'"'/path/from/helper/output'"'"'' "${AGENT_ORCHESTRA_TUI_SUBMIT_KEY:-C-m}"
 ```
 
 Before pasting any shell launch command, capture the target pane. The pane must
@@ -143,7 +148,37 @@ visible inside an active Codex composer is prompt pollution and must be treated
 as failed launch evidence, not as a valid relaunch.
 
 After launch, capture the pane and confirm paths did not collapse to `/env.sh`
-or `/workspace`.
+or `/workspace`. Also verify the pane is the intended ProfessionalAgent
+process before any task delivery or task-file registration:
+
+```sh
+tmux display-message -p -t "$PANE" '#{session_name}:#{window_index}.#{pane_index} #{pane_id} #{pane_current_command} #{pane_current_path}'
+```
+
+Prefer the packaged verifier for this check when it is available:
+
+```sh
+"$AGENT_ORCHESTRA_PYTHON" -m agent_orchestra_minimal.pa_launch_verify \
+  --pane "$PANE" \
+  --expected-session "$SELF_E2E_SESSION" \
+  --expected-cwd "$AGENT_WORKSPACE" \
+  --json
+```
+
+The verifier rejects panes that are still shells, in the wrong session, in the
+MainAgent workspace, or missing a Codex TUI capture. A non-zero verifier result
+is failed ProfessionalAgent launch evidence; do not send task text to that
+pane.
+
+The returned `pane_id` must be the pane created for that Agent, the session name
+must be the current dedicated orchestra session, `pane_current_command` must be
+the Codex CLI process such as `node` or `codex`, and `pane_current_path` must
+match `command.json` `cwd` or the prepared Agent workspace. A pane that still
+runs `zsh`, `bash`, `fish`, or another shell in the MainAgent workspace is a
+failed ProfessionalAgent launch, even if `state.json` says `ready`. Do not send
+assignments, review requests, recovery prompts, `echo launch-test`, `paste-test`,
+or any other probe text to that pane. Relaunch that Agent in a verified pane and
+record the mismatch as launch-routing evidence.
 
 If `env.sh` is not available, regenerate launch material rather than pasting
 every environment variable into the pane. This is launch hygiene, not a wrapper

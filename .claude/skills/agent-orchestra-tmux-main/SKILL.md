@@ -45,8 +45,21 @@ right.
 4. In the shell pane, source the generated `env.sh` and run the Claude Code CLI
    `argv` from `command.json`. Keep the pane readable; avoid pasting many
    `export` lines.
-5. After the Claude Code TUI is ready, use `agent-orchestra-tmux-common` to send
-   the scoped initial task and verify delivery.
+5. After launch, verify the exact pane identity before recording or delivering
+   work. The pane id must still be the id returned by the targeted split, the
+   session must be the current dedicated orchestra session,
+   `pane_current_command` must be the Claude Code process, and
+   `pane_current_path` must match `command.json` `cwd` or the prepared
+   ProfessionalAgent workspace. A pane still running `zsh`, `bash`, `fish`, or
+   another shell in the MainAgent workspace is a failed ProfessionalAgent launch,
+   even if `state.json` says `ready`.
+6. Do not send assignments, recovery prompts, `echo launch-test`, `paste-test`,
+   or other probe text to an unverified pane. Record a launch-routing candidate
+   with expected cwd, actual command/path, pane id, session name, and capture
+   evidence, then relaunch or block.
+7. After the Claude Code TUI is ready and pane identity is verified, use
+   `agent-orchestra-tmux-common` to send the scoped initial task and verify
+   delivery.
 
 If launch fails, inspect the pane and process state, re-read `env.json`,
 `env.sh`, and `command.json`, retry in the same pane when safe, or use a fresh pane. Report

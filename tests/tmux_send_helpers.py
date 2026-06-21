@@ -21,6 +21,8 @@ class FakeTmuxSend:
         stdout = ""
         if args[:2] == ["tmux", "paste-buffer"]:
             self.paste_seen = True
+        if len(args) >= 6 and args[:3] == ["tmux", "send-keys", "-t"] and "-l" in args:
+            self.paste_seen = True
         if args[:2] == ["tmux", "capture-pane"]:
             if not self.paste_seen and self.baseline_capture is not None:
                 if isinstance(self.baseline_capture, list):
@@ -41,3 +43,16 @@ def tmux_buffer_name(fake: FakeTmuxSend) -> str:
     if not args[3].startswith("agent-orchestra-msg-"):
         raise AssertionError(f"unexpected buffer name: {args[3]!r}")
     return args[3]
+
+
+def delivery_input_calls(fake: FakeTmuxSend) -> list[tuple[list[str], str | None]]:
+    return [
+        call
+        for call in fake.calls
+        if call[0][:2] == ["tmux", "paste-buffer"]
+        or (len(call[0]) >= 6 and call[0][:3] == ["tmux", "send-keys", "-t"] and "-l" in call[0])
+    ]
+
+
+def submit_key_calls(fake: FakeTmuxSend) -> list[tuple[list[str], str | None]]:
+    return [call for call in fake.calls if call[0][:2] == ["tmux", "send-keys"] and "-l" not in call[0]]

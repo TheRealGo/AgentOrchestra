@@ -35,6 +35,13 @@ def wait_for_startup(
         exit_code = process.poll()
         if exit_code is not None:
             return {"status": "startup-failed", "exit_code": exit_code}
+        tail = log_tail(log_path) if log_path is not None else ""
+        if _contains_startup_failure(tail):
+            return {
+                "status": "startup-failed",
+                "exit_code": _wait_for_exit_code(process, 0.5),
+                "startup_failure": "log-marker",
+            }
         port_ready = port is None or tcp_listening("127.0.0.1", port)
         if port_ready:
             if health_url:
@@ -52,6 +59,13 @@ def wait_for_startup(
             else:
                 return _confirm_stable_startup(process, log_path, settle_time)
         if time.monotonic() >= deadline:
+            tail = _wait_for_startup_failure_log(log_path, 1.0)
+            if _contains_startup_failure(tail):
+                return {
+                    "status": "startup-failed",
+                    "exit_code": _wait_for_exit_code(process, 0.5),
+                    "startup_failure": "log-marker",
+                }
             result: dict[str, Any] = {"status": "startup-timeout", "exit_code": None}
             if health_url:
                 result["health_url"] = health_url
@@ -73,7 +87,11 @@ def _confirm_stable_startup(
             return {"status": "startup-failed", "exit_code": exit_code}
         tail = log_tail(log_path) if log_path is not None else ""
         if _contains_startup_failure(tail):
-            return {"status": "startup-failed", "exit_code": process.poll(), "startup_failure": "log-marker"}
+            return {
+                "status": "startup-failed",
+                "exit_code": _wait_for_exit_code(process, 0.5),
+                "startup_failure": "log-marker",
+            }
         if time.monotonic() >= deadline:
             return {"status": "running"}
         time.sleep(0.05)
@@ -82,6 +100,26 @@ def _confirm_stable_startup(
 def _contains_startup_failure(text: str) -> bool:
     folded = text.casefold()
     return any(marker in folded for marker in STARTUP_FAILURE_MARKERS)
+
+
+def _wait_for_exit_code(process: subprocess.Popen[Any], timeout: float) -> int | None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if (exit_code := process.poll()) is not None:
+            return int(exit_code)
+        time.sleep(0.05)
+    return process.poll()
+
+
+def _wait_for_startup_failure_log(log_path: Path | None, timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    tail = ""
+    while time.monotonic() < deadline:
+        tail = log_tail(log_path) if log_path is not None else ""
+        if _contains_startup_failure(tail):
+            return tail
+        time.sleep(0.05)
+    return tail
 
 
 def tcp_listening(host: str, port: int) -> bool:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .agent_state import KNOWN_STATES, AgentState
-from .launch_args import editable_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
+from .launch_args import editable_access_roots, launch_access_roots, main_tmux_pane, optional_tmux_pane, validate_codex_args
 from .launch_env import build_launch_command, build_launch_env
 from .launch_io import PRIVATE_DIR_MODE, PRIVATE_FILE_MODE, ensure_target_link, install_auth_material, install_codex_material, remove_isolated_path, validate_auth_source, write_env_shell, write_json
 from .launch_startup import agents_md, startup_text
@@ -58,7 +58,9 @@ def prepare_launch_material(
     target_root = Path(target_project).expanduser().resolve(strict=True)
     if not target_root.is_dir():
         raise NotADirectoryError(target_root)
-    access_roots = editable_access_roots(target_root)
+    editable_roots = editable_access_roots(target_root)
+    edit_root = editable_roots[-1]
+    access_roots = launch_access_roots(target_root, editable_roots)
     assigned_text = startup_text(instruction_text, instruction_source)
     run_root = Path(run_dir).expanduser().resolve()
     agent_dir = run_root / "agents" / agent_id
@@ -122,6 +124,7 @@ def prepare_launch_material(
         home=home, codex_home=codex_home, agent_id=agent_id, agent_kind=kind,
         agent_dir=agent_dir, run_root=run_root, task_file=shared_task,
         state_file=state_file, target_root=target_root, access_roots=access_roots,
+        edit_root=edit_root,
         cache_dir=cache_dir, artifact_dir=artifact_dir, environment_dir=environment_dir,
         mcp_source_config=config_path, submit_key=submit_key,
         tmux_pane=normalized_tmux_pane, main_pane=main_pane,

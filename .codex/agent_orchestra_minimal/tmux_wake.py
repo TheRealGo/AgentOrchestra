@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from .agent_state import AgentState
+from .agent_state_doctor import finalized_task_file_agent_state_blockers
 from .rekick import WakeDecision, decide_wake
 from .task_file import SharedTaskFile
 from .tmux_delivery import DEFAULT_SUBMIT_KEY, DeliveryResult, Runner, normalize_submit_key, send_buffered_text
@@ -21,7 +22,9 @@ WAKE_PAYLOAD = "\n".join(
     )
 )
 WAKE_BUFFER_PREFIX = "agent-orchestra-wake"
-WAKE_POLLS_PER_ATTEMPT = 60
+# Stop hooks have a short host-side timeout. Wake delivery must be a bounded
+# nudge, not a long tmux-send confirmation loop.
+WAKE_POLLS_PER_ATTEMPT = 10
 WAKE_POLL_INTERVAL_SECONDS = 0.05
 
 
@@ -46,7 +49,7 @@ def send_wake(
         poll_interval_seconds=WAKE_POLL_INTERVAL_SECONDS,
         polls_per_attempt=WAKE_POLLS_PER_ATTEMPT,
         require_fresh_capture=True,
-        clear_default_composer=False,
+        clear_default_composer=True,
     )
 
 
@@ -120,6 +123,20 @@ def run_stop_hook(
         task = SharedTaskFile.read(task_file)
     except (OSError, ValueError):
         return _handle_invalid_task_file(state, pane_target, main_pane_target, submit_key, runner)
+    if state.is_main and task.is_finalized and _self_e2e_status_requires_main_wake(environ):
+        return _send_wake_decision(
+            pane_target,
+            reason="main_done_with_selfe2e_status_not_done",
+            submit_key=submit_key,
+            runner=runner,
+        )
+    if state.is_main and task.is_finalized and finalized_task_file_agent_state_blockers(task_file):
+        return _send_wake_decision(
+            pane_target,
+            reason="main_done_with_unretired_professional_agents",
+            submit_key=submit_key,
+            runner=runner,
+        )
     decision = decide_wake(task, state)
     if decision.should_wake:
         return _send_wake_decision(
@@ -159,6 +176,19 @@ def _task_file_is_invalid_or_unreadable(task_file: Path) -> bool:
     except (OSError, ValueError):
         return True
     return False
+
+
+def _self_e2e_status_requires_main_wake(environ: Mapping[str, str]) -> bool:
+    target = _path(environ.get("AGENT_ORCHESTRA_EDIT_ROOT") or environ.get("AGENT_ORCHESTRA_TARGET_PROJECT"))
+    if target is None:
+        return False
+    status_file = target / ".tmp" / "self-improvement-e2e" / "status"
+    if not status_file.is_file():
+        return False
+    try:
+        return status_file.read_text(encoding="utf-8").strip() != "done"
+    except OSError:
+        return True
 
 
 def _agent_kind(environ: Mapping[str, str]) -> str:
