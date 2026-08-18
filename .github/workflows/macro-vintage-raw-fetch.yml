@@ -14,33 +14,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Probe official BLS archived byte endpoints
+      - name: Fetch one BLS archive PDF using policy-conforming identified robot
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p raw
-          urls=(
-            'https://www.bls.gov/news.release/archives/ximpim_02152008.pdf'
-            'https://www.bls.gov/news.release/archives/ximpim_02152008.htm'
-            'https://www.bls.gov/news.release/history/ximpim_02152008.txt'
-            'https://www.bls.gov/news.release/archives/ximpim_02152008.txt'
-          )
-          i=0
-          : > raw/STATUS.txt
-          for url in "${urls[@]}"; do
-            i=$((i+1))
-            out="raw/candidate_${i}.bin"
-            code=$(curl --silent --show-error --location --connect-timeout 20 --max-time 60 -A 'Mozilla/5.0' -w '%{http_code}' "$url" -o "$out" || true)
-            printf '%s %s %s\n' "$i" "$code" "$url" >> raw/STATUS.txt
-            sha256sum "$out" >> raw/SHA256SUMS.txt || true
-            wc -c "$out" >> raw/BYTECOUNT.txt || true
-          done
+          url='https://www.bls.gov/news.release/archives/ximpim_02152008.pdf'
+          ua='MacroVintageWorker/1.0 (+https://github.com/TheRealGo/AgentOrchestra)'
+          code=$(curl --http1.1 --silent --show-error --location --connect-timeout 20 --max-time 60 -A "$ua" -H 'Accept: application/pdf,text/html;q=0.9,*/*;q=0.8' -w '%{http_code}' "$url" -o raw/ximpim_02152008.bin || true)
+          printf '%s %s\n' "$code" "$url" > raw/STATUS.txt
+          sha256sum raw/ximpim_02152008.bin > raw/SHA256SUMS.txt || true
+          wc -c raw/ximpim_02152008.bin > raw/BYTECOUNT.txt || true
+          head -c 16 raw/ximpim_02152008.bin | xxd -p > raw/MAGIC.txt || true
+          grep -a -i -m1 -E '8:30|Import and Export Price|Access Denied' raw/ximpim_02152008.bin > raw/MATCH.txt || true
           cat raw/STATUS.txt
-          grep -a -i -m1 -E '8:30|Import and Export Price' raw/candidate_*.bin > raw/MATCHES.txt || true
-      - name: Upload raw endpoint diagnostics
+      - name: Upload raw endpoint diagnostic
         uses: actions/upload-artifact@v4
         with:
-          name: bls-mxp-raw-endpoint-diagnostics
+          name: bls-mxp-identified-robot-probe
           path: raw/
           if-no-files-found: error
           retention-days: 7
