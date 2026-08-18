@@ -1,0 +1,33 @@
+name: macro-vintage raw fetch
+
+on:
+  pull_request:
+    paths:
+      - "Handoff.md"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-bls-mxp-sample:
+    if: github.head_ref == 'macro-vintage-raw-fetch-20260818'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch official BLS MXP PDF sample byte-for-byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p raw
+          url='https://www.bls.gov/news.release/archives/ximpim_02152008.pdf'
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 20 --max-time 120 "$url" -o raw/ximpim_02152008.pdf
+          test "$(head -c 4 raw/ximpim_02152008.pdf)" = '%PDF'
+          sha256sum raw/ximpim_02152008.pdf > raw/SHA256SUMS.txt
+          wc -c raw/ximpim_02152008.pdf > raw/BYTECOUNT.txt
+      - name: Upload raw source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bls-mxp-raw-sample
+          path: raw/
+          if-no-files-found: error
+          retention-days: 7
