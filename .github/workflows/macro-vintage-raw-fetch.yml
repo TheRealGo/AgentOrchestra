@@ -14,20 +14,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Fetch official BLS MXP PDF sample byte-for-byte
+      - name: Probe official BLS archived byte endpoints
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p raw
-          url='https://www.bls.gov/news.release/archives/ximpim_02152008.pdf'
-          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 20 --max-time 120 "$url" -o raw/ximpim_02152008.pdf
-          test "$(head -c 4 raw/ximpim_02152008.pdf)" = '%PDF'
-          sha256sum raw/ximpim_02152008.pdf > raw/SHA256SUMS.txt
-          wc -c raw/ximpim_02152008.pdf > raw/BYTECOUNT.txt
-      - name: Upload raw source artifact
+          urls=(
+            'https://www.bls.gov/news.release/archives/ximpim_02152008.pdf'
+            'https://www.bls.gov/news.release/archives/ximpim_02152008.htm'
+            'https://www.bls.gov/news.release/history/ximpim_02152008.txt'
+            'https://www.bls.gov/news.release/archives/ximpim_02152008.txt'
+          )
+          i=0
+          : > raw/STATUS.txt
+          for url in "${urls[@]}"; do
+            i=$((i+1))
+            out="raw/candidate_${i}.bin"
+            code=$(curl --silent --show-error --location --connect-timeout 20 --max-time 60 -A 'Mozilla/5.0' -w '%{http_code}' "$url" -o "$out" || true)
+            printf '%s %s %s\n' "$i" "$code" "$url" >> raw/STATUS.txt
+            sha256sum "$out" >> raw/SHA256SUMS.txt || true
+            wc -c "$out" >> raw/BYTECOUNT.txt || true
+          done
+          cat raw/STATUS.txt
+          grep -a -i -m1 -E '8:30|Import and Export Price' raw/candidate_*.bin > raw/MATCHES.txt || true
+      - name: Upload raw endpoint diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: bls-mxp-raw-sample
+          name: bls-mxp-raw-endpoint-diagnostics
           path: raw/
           if-no-files-found: error
           retention-days: 7
