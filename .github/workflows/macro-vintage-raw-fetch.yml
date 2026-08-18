@@ -3,7 +3,7 @@ name: macro-vintage raw fetch
 on:
   pull_request:
     paths:
-      - "Handoff.md"
+      - "tests/macro-vintage-trigger.txt"
 
 permissions:
   contents: read
